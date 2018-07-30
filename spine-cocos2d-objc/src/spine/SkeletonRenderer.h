@@ -30,6 +30,8 @@
 
 #import <spine/spine.h>
 #import "cocos2d.h"
+#import "CCNode_Private.h"
+#import "CCTexture_Private.h"
 
 /** Draws a skeleton. */
 @interface SkeletonRenderer : CCNode<CCBlendProtocol> {
