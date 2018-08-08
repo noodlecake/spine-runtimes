@@ -889,6 +889,8 @@ spSkeletonData* spSkeletonJson_readSkeletonData (spSkeletonJson* self, const cha
 						type = SP_ATTACHMENT_BOUNDING_BOX;
 					else if (strcmp(typeString, "path") == 0)
 						type = SP_ATTACHMENT_PATH;
+                    else if (strcmp(typeString, "point") == 0)
+                        type = SP_ATTACHMENT_POINT;
 					else if	(strcmp(typeString, "clipping") == 0)
 						type = SP_ATTACHMENT_CLIPPING;
 					else {
