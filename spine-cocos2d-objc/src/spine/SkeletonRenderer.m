@@ -72,7 +72,7 @@ static bool handlerQueued = false;
 	
 	_ownsSkeletonData = ownsSkeletonData;
 
-	_worldVertices = MALLOC(float, 1000); // Max number of vertices per mesh.
+	_worldVertices = MALLOC(float, 2048); // Max number of vertices per mesh.
 
 	_skeleton = spSkeleton_create(skeletonData);
 	_rootBone = _skeleton->bones[0];
