@@ -52,6 +52,10 @@
 
 #include <stdio.h>
 
+#ifdef STRINGIFY
+#undef STRINGIFY
+#endif
+
 #define STRINGIFY(A)  #A
 #define MAX_VERTICES 64000
 #define MAX_INDICES 64000
