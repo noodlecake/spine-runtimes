@@ -44,5 +44,16 @@ void _spAtlasPage_disposeTexture (spAtlasPage* self) {
 }
 
 char* _spUtil_readFile (const char* path, int* length) {
-	return _spReadFile([[[CCFileUtils sharedFileUtils] fullPathForFilename:@(path)] UTF8String], length);
+	#ifdef ANDROID
+		// Use NSData to read from the apk path
+		NSString* filePath = [[CCFileUtils sharedFileUtils] fullPathForFilename:@(path)];
+		NSData* fileData = [NSData dataWithContentsOfFile:filePath];
+		int fileSize = [fileData length];
+		char* bytes = malloc(fileSize);
+		[fileData getBytes:bytes];
+		*length = fileSize;
+		return bytes;
+	#else
+		return _spReadFile([[[CCFileUtils sharedFileUtils] fullPathForFilename:@(path)] UTF8String], length);
+	#endif
 }

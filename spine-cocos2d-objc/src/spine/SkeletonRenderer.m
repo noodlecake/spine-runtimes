@@ -162,10 +162,6 @@ static bool handlerQueued = false;
 }
 
 -(void)draw:(CCRenderer *)renderer transform:(const GLKMatrix4 *)transform {
-
-#ifdef ANDROID
-	assert(false); // todo figure out
-#endif
 	// FIXME we need to clear the mesh parts at the end of the frame
 	// there's no general event mechanism to get notified on end frame
 	// that doesn't need to be re-added every frame. This is a poor man
