@@ -109,13 +109,13 @@
 #define ACOS(A) acosf(A)
 #define POW(A,B) pow(A, B)
 #else
-#define FMOD(A,B) (float)fmod(A, B)
-#define ATAN2(A,B) (float)atan2(A, B)
-#define COS(A) (float)cos(A)
-#define SIN(A) (float)sin(A)
-#define SQRT(A) (float)sqrt(A)
-#define ACOS(A) (float)acos(A)
-#define POW(A,B) (float)pow(A, B)
+#define FMOD(A,B) (float)fmodf(A, B)
+#define ATAN2(A,B) (float)atan2f(A, B)
+#define COS(A) (float)cosf(A)
+#define SIN(A) (float)sinf(A)
+#define SQRT(A) (float)sqrtf(A)
+#define ACOS(A) (float)acosf(A)
+#define POW(A,B) (float)powf(A, B)
 #endif
 
 #define SIN_DEG(A) SIN((A) * DEG_RAD)
