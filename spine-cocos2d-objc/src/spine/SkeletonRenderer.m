@@ -33,6 +33,7 @@
 #import <spine/extension.h>
 #import <spine/GLUtils.h>
 #import "CCDrawNode.h"
+#import "CCDirector_Private.h"
 
 static unsigned short quadTriangles[6] = {0, 1, 2, 2, 3, 0};
 static spTwoColorBatcher* batcher = 0;
