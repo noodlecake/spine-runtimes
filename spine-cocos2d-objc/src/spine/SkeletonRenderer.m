@@ -113,7 +113,7 @@ static bool handlerQueued = false;
 
 	spSkeletonJson* json = spSkeletonJson_create(atlas);
 	json->scale = scale;
-    spSkeletonData* skeletonData = nil;
+    spSkeletonData* skeletonData = NULL;
     
     @synchronized(self.class) {
         spSkeletonJson_readSkeletonDataFile(json, [skeletonDataFile UTF8String]);
