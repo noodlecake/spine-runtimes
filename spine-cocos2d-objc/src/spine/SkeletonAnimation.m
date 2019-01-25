@@ -147,11 +147,17 @@ static _TrackEntryListeners* getListeners (spTrackEntry* entry) {
 }
 
 - (void) update:(CCTime)deltaTime {
+    
 	deltaTime *= _timeScale;
 	spSkeleton_update(_skeleton, deltaTime);
 	spAnimationState_update(_state, deltaTime);
-	spAnimationState_apply(_state, _skeleton);
-	spSkeleton_updateWorldTransform(_skeleton);
+}
+
+-(void) visit:(CCRenderer *)renderer parentTransform:(const GLKMatrix4 *)parentTransform {
+    spAnimationState_apply(_state, _skeleton);
+    spSkeleton_updateWorldTransform(_skeleton);
+    
+    [super visit:renderer parentTransform:parentTransform];
 }
 
 - (void) setAnimationStateData:(spAnimationStateData*)stateData {
