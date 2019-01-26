@@ -70,6 +70,10 @@ static bool handlerQueued = false;
 		batcher = spTwoColorBatcher_create();
 		mesh = spMesh_create(64000, 32000);
 	}
+    
+    _sdfTexture = nil;
+    _sdfRenderState = nil;
+    _thickStroke = NO;
 	
 	_ownsSkeletonData = ownsSkeletonData;
 
@@ -94,6 +98,25 @@ static bool handlerQueued = false;
 	
 	_clipper = spSkeletonClipping_create();
 	_effect = 0;
+}
+
+- (void) setSdfTexture:(CCTexture *)sdfTexture {
+    if(_sdfTexture) {
+        [_sdfTexture release];
+    }
+    _sdfTexture = sdfTexture;
+    [sdfTexture retain];
+    
+    if(_sdfRenderState) {
+        [_sdfRenderState release];
+    }
+    NSMutableDictionary* dict = [[NSMutableDictionary alloc] init];
+    dict[@"u_stroke"]  = _thickStroke ? @(0.3f) : @(0.4f);
+    dict[@"u_strokeAliasing"]  = _thickStroke ? @(0.08f) : @(0.03f);
+    dict[@"u_SDFTex"]  = _sdfTexture;
+    _sdfRenderState = [[CCRenderState renderStateWithBlendMode:[CCBlendMode premultipliedAlphaMode] shader:[CCShader shaderNamed:@"SpineSDF"] shaderUniforms:dict copyUniforms:YES] retain];
+    
+    [dict release];
 }
 
 - (id) initWithData:(spSkeletonData*)skeletonData ownsSkeletonData:(bool)ownsSkeletonData {
@@ -159,6 +182,15 @@ static bool handlerQueued = false;
 	spSkeleton_dispose(_skeleton);
 	FREE(_worldVertices);
 	spSkeletonClipping_dispose(_clipper);
+    if(_sdfTexture) {
+        [_sdfTexture release];
+        _sdfTexture = nil;
+    }
+    if(_sdfRenderState) {
+        [_sdfRenderState release];
+        _sdfRenderState = nil;
+    }
+    
 	[super dealloc];
 }
 
@@ -184,209 +216,222 @@ static bool handlerQueued = false;
 	_skeleton->color.b = nodeColor.blue;
 	_skeleton->color.a = self.displayedOpacity;
 
-	int blendMode = -1;
-	uint32_t srcBlend = GL_SRC_ALPHA;
-	uint32_t dstBlend = GL_ONE_MINUS_SRC_ALPHA;
-	float* uvs = 0;
-	float* vertices = _worldVertices;
-	int verticesCount = 0;
-	unsigned short* triangles = 0;
-	int trianglesCount = 0;
-	float r = 0, g = 0, b = 0, a = 0;
-	float dr = 0, dg = 0, db = 0, da = _premultipliedAlpha ? 1 : 0;
-	for (int i = 0, n = _skeleton->slotsCount; i < n; i++) {
-		spSlot* slot = _skeleton->drawOrder[i];
-		if (!slot->attachment) continue;
-		CCTexture *texture = 0;
-		switch (slot->attachment->type) {
-		case SP_ATTACHMENT_REGION: {
-			spRegionAttachment* attachment = (spRegionAttachment*)slot->attachment;
-			spRegionAttachment_computeWorldVertices(attachment, slot->bone, vertices, 0, 2);
-			texture = [self getTextureForRegion:attachment];
-			uvs = attachment->uvs;
-			verticesCount = 8;
-			triangles = quadTriangles;
-			trianglesCount = 6;
-			r = attachment->color.r;
-			g = attachment->color.g;
-			b = attachment->color.b;
-			a = attachment->color.a;
-			break;
-		}
-		case SP_ATTACHMENT_MESH: {
-			spMeshAttachment* attachment = (spMeshAttachment*)slot->attachment;
-			spVertexAttachment_computeWorldVertices(SUPER(attachment), slot, 0, attachment->super.worldVerticesLength, vertices, 0, 2);
-			texture = [self getTextureForMesh:attachment];
-			uvs = attachment->uvs;
-			verticesCount = attachment->super.worldVerticesLength;
-			triangles = attachment->triangles;
-			trianglesCount = attachment->trianglesCount;
-			r = attachment->color.r;
-			g = attachment->color.g;
-			b = attachment->color.b;
-			a = attachment->color.a;
-			break;
-		}
-		case SP_ATTACHMENT_CLIPPING: {
-			spClippingAttachment* clip = (spClippingAttachment*)slot->attachment;
-			spSkeletonClipping_clipStart(_clipper, slot, clip);
-		}
-		default: ;
-		}
-		
-		if (texture) {
-			if (slot->data->blendMode != blendMode) {
-				blendMode = slot->data->blendMode;
-				switch (slot->data->blendMode) {
-				case SP_BLEND_MODE_ADDITIVE:
-					[self setBlendMode:[CCBlendMode addMode]];
-					srcBlend = !_premultipliedAlpha ? GL_SRC_ALPHA : GL_ONE;
-					dstBlend = GL_ONE;
-					break;
-				case SP_BLEND_MODE_MULTIPLY:
-					[self setBlendMode:[CCBlendMode multiplyMode]];
-					srcBlend = GL_DST_COLOR;
-					dstBlend = GL_ONE_MINUS_SRC_ALPHA;
-					break;
-				case SP_BLEND_MODE_SCREEN:
-					[self setBlendMode:screenMode];
-					srcBlend = GL_ONE;
-					dstBlend = GL_ONE_MINUS_SRC_COLOR;
-					break;
-				default:
-					[self setBlendMode:_premultipliedAlpha ? [CCBlendMode premultipliedAlphaMode] : [CCBlendMode alphaMode]];
-					srcBlend = !_premultipliedAlpha ? GL_SRC_ALPHA : GL_ONE;
-					dstBlend = GL_ONE_MINUS_SRC_ALPHA;
-				}
-			}
-			if (_premultipliedAlpha) {
-				a *= _skeleton->color.a * slot->color.a;
-				r *= _skeleton->color.r * slot->color.r * a;
-				g *= _skeleton->color.g * slot->color.g * a;
-				b *= _skeleton->color.b * slot->color.b * a;
-			} else {
-				a *= _skeleton->color.a * slot->color.a;
-				r *= _skeleton->color.r * slot->color.r;
-				g *= _skeleton->color.g * slot->color.g;
-				b *= _skeleton->color.b * slot->color.b;
-			}
-			self.texture = texture;
-			CGSize size = texture.contentSize;
-			GLKVector2 center = GLKVector2Make(size.width / 2.0, size.height / 2.0);
-			GLKVector2 extents = GLKVector2Make(size.width / 2.0, size.height / 2.0);
-			if (_skipVisibilityCheck || CCRenderCheckVisbility(transform, center, extents)) {
-				
-				if (spSkeletonClipping_isClipping(_clipper)) {
-					spSkeletonClipping_clipTriangles(_clipper, vertices, verticesCount, triangles, trianglesCount, uvs, 2);
-					vertices = _clipper->clippedVertices->items;
-					verticesCount = _clipper->clippedVertices->size;
-					uvs = _clipper->clippedUVs->items;
-					triangles = _clipper->clippedTriangles->items;
-					trianglesCount = _clipper->clippedTriangles->size;
-				}
-				
-				if (trianglesCount > 0) {
-					if (!self.twoColorTint) {
-						CCRenderBuffer buffer = [renderer enqueueTriangles:(trianglesCount / 3) andVertexes:verticesCount withState:self.renderState globalSortOrder:0];
-						for (int i = 0; i * 2 < verticesCount; ++i) {
-							CCVertex vertex;
-							vertex.position = GLKVector4Make(vertices[i * 2], vertices[i * 2 + 1], 0.0, 1.0);
-							vertex.color = GLKVector4Make(r, g, b, a);
-							vertex.texCoord1 = GLKVector2Make(uvs[i * 2], 1 - uvs[i * 2 + 1]);
-							if (_effect) {
-								spColor light;
-								spColor dark;
-								light.r = r;
-								light.g = g;
-								light.b = b;
-								light.a = a;
-								dark.r = dark.g = dark.b = dark.a = 0;
-								_effect->transform(_effect, &vertex.position.x, &vertex.position.y, &vertex.texCoord1.s, &vertex.texCoord1.t, &light, &dark);
-								vertex.color.r = light.r;
-								vertex.color.g = light.g;
-								vertex.color.b = light.b;
-								vertex.color.a = light.a;
-							}
-							CCRenderBufferSetVertex(buffer, i, CCVertexApplyTransform(vertex, transform));
-						}
-						for (int j = 0; j * 3 < trianglesCount; ++j) {
-							CCRenderBufferSetTriangle(buffer, j, triangles[j * 3], triangles[j * 3 + 1], triangles[j * 3 + 2]);
-						}
-					} else {
-						if (slot->darkColor) {
-							dr = slot->darkColor->r;
-							dg = slot->darkColor->g;
-							db = slot->darkColor->b;
-						} else {
-							dr = dg = db = 0;
-						}
-						
-						spMeshPart meshPart;
-						spMesh_allocatePart(mesh, &meshPart, verticesCount / 2, trianglesCount, self.texture.name, srcBlend, dstBlend);
-						
-						spVertex* verts = &meshPart.mesh->vertices[meshPart.startVertex];
-						unsigned short* indices = &meshPart.mesh->indices[meshPart.startIndex];
-						
-						if (_effect) {
-							spColor light;
-							light.r = r;
-							light.g = g;
-							light.b = b;
-							light.a = a;
-							spColor dark;
-							dark.r = dr;
-							dark.g = dg;
-							dark.b = db;
-							dark.a = da;
-							for (int i = 0; i * 2 < verticesCount; i++, verts++) {
-								spColor lightCopy = light;
-								spColor darkCopy = dark;
-								
-								CCVertex vertex;
-								vertex.position = GLKVector4Make(vertices[i * 2], vertices[i * 2 + 1], 0.0, 1.0);
-								verts->u = uvs[i * 2];
-								verts->v = 1 - uvs[i * 2 + 1];
-								_effect->transform(_effect, &vertex.position.x, &vertex.position.y, &verts->u, &verts->v, &lightCopy, &darkCopy);
-								
-								vertex = CCVertexApplyTransform(vertex, transform);
-								verts->x = vertex.position.x;
-								verts->y = vertex.position.y;
-								verts->z = vertex.position.z;
-								verts->w = vertex.position.w;
-								verts->color = ((unsigned short)(lightCopy.r * 255))| ((unsigned short)(lightCopy.g * 255)) << 8 | ((unsigned short)(lightCopy.b * 255)) <<16 | ((unsigned short)(lightCopy.a * 255)) << 24;
-								verts->color2 = ((unsigned short)(darkCopy.r * 255)) | ((unsigned short)(darkCopy.g * 255)) << 8 | ((unsigned short)(darkCopy.b * 255)) << 16 | ((unsigned short)(darkCopy.a * 255)) << 24;
-								
-							}
-						} else {
-							for (int i = 0; i * 2 < verticesCount; i++, verts++) {
-								CCVertex vertex;
-								vertex.position = GLKVector4Make(vertices[i * 2], vertices[i * 2 + 1], 0.0, 1.0);
-								vertex = CCVertexApplyTransform(vertex, transform);
-								verts->x = vertex.position.x;
-								verts->y = vertex.position.y;
-								verts->z = vertex.position.z;
-								verts->w = vertex.position.w;
-								verts->color = ((unsigned short)(r * 255))| ((unsigned short)(g * 255)) << 8 | ((unsigned short)(b * 255)) <<16 | ((unsigned short)(a * 255)) << 24;
-								verts->color2 = ((unsigned short)(dr * 255)) | ((unsigned short)(dg * 255)) << 8 | ((unsigned short)(db * 255)) << 16 | ((unsigned short)(da * 255)) << 24;
-								verts->u = uvs[i * 2];
-								verts->v = 1 - uvs[i * 2 + 1];
-							}
-						}
-						
-						for (int j = 0; j < trianglesCount; j++, indices++) {
-							*indices = triangles[j];
-						}
-						
-						[renderer enqueueBlock:^{
-							spTwoColorBatcher_add(batcher, meshPart);
-						} globalSortOrder:0 debugLabel: nil threadSafe: false];
-					}
-				}
-			}
-		}
-		spSkeletonClipping_clipEnd(_clipper, slot);
-	}
-	spSkeletonClipping_clipEnd2(_clipper);
+    int currentIteration = 2;
+    if(_sdfTexture)
+        currentIteration = 1;
+    
+    for(int iteration = currentIteration; iteration <= 2; iteration++) {
+    
+        int blendMode = -1;
+        uint32_t srcBlend = GL_SRC_ALPHA;
+        uint32_t dstBlend = GL_ONE_MINUS_SRC_ALPHA;
+        float* uvs = 0;
+        float* vertices = _worldVertices;
+        int verticesCount = 0;
+        unsigned short* triangles = 0;
+        int trianglesCount = 0;
+        float r = 0, g = 0, b = 0, a = 0;
+        float dr = 0, dg = 0, db = 0, da = _premultipliedAlpha ? 1 : 0;
+        for (int i = 0, n = _skeleton->slotsCount; i < n; i++) {
+            spSlot* slot = _skeleton->drawOrder[i];
+            if (!slot->attachment) continue;
+            CCTexture *texture = 0;
+            switch (slot->attachment->type) {
+            case SP_ATTACHMENT_REGION: {
+                spRegionAttachment* attachment = (spRegionAttachment*)slot->attachment;
+                spRegionAttachment_computeWorldVertices(attachment, slot->bone, vertices, 0, 2);
+                texture = [self getTextureForRegion:attachment];
+                uvs = attachment->uvs;
+                verticesCount = 8;
+                triangles = quadTriangles;
+                trianglesCount = 6;
+                r = attachment->color.r;
+                g = attachment->color.g;
+                b = attachment->color.b;
+                a = attachment->color.a;
+                break;
+            }
+            case SP_ATTACHMENT_MESH: {
+                spMeshAttachment* attachment = (spMeshAttachment*)slot->attachment;
+                spVertexAttachment_computeWorldVertices(SUPER(attachment), slot, 0, attachment->super.worldVerticesLength, vertices, 0, 2);
+                texture = [self getTextureForMesh:attachment];
+                uvs = attachment->uvs;
+                verticesCount = attachment->super.worldVerticesLength;
+                triangles = attachment->triangles;
+                trianglesCount = attachment->trianglesCount;
+                r = attachment->color.r;
+                g = attachment->color.g;
+                b = attachment->color.b;
+                a = attachment->color.a;
+                break;
+            }
+            case SP_ATTACHMENT_CLIPPING: {
+                spClippingAttachment* clip = (spClippingAttachment*)slot->attachment;
+                spSkeletonClipping_clipStart(_clipper, slot, clip);
+            }
+            default: ;
+            }
+            
+            if (texture) {
+                if (slot->data->blendMode != blendMode) {
+                    blendMode = slot->data->blendMode;
+                    switch (slot->data->blendMode) {
+                    case SP_BLEND_MODE_ADDITIVE:
+                        [self setBlendMode:[CCBlendMode addMode]];
+                        srcBlend = !_premultipliedAlpha ? GL_SRC_ALPHA : GL_ONE;
+                        dstBlend = GL_ONE;
+                        break;
+                    case SP_BLEND_MODE_MULTIPLY:
+                        [self setBlendMode:[CCBlendMode multiplyMode]];
+                        srcBlend = GL_DST_COLOR;
+                        dstBlend = GL_ONE_MINUS_SRC_ALPHA;
+                        break;
+                    case SP_BLEND_MODE_SCREEN:
+                        [self setBlendMode:screenMode];
+                        srcBlend = GL_ONE;
+                        dstBlend = GL_ONE_MINUS_SRC_COLOR;
+                        break;
+                    default:
+                        [self setBlendMode:_premultipliedAlpha ? [CCBlendMode premultipliedAlphaMode] : [CCBlendMode alphaMode]];
+                        srcBlend = !_premultipliedAlpha ? GL_SRC_ALPHA : GL_ONE;
+                        dstBlend = GL_ONE_MINUS_SRC_ALPHA;
+                    }
+                }
+                if (_premultipliedAlpha) {
+                    a *= _skeleton->color.a * slot->color.a;
+                    r *= _skeleton->color.r * slot->color.r * a;
+                    g *= _skeleton->color.g * slot->color.g * a;
+                    b *= _skeleton->color.b * slot->color.b * a;
+                } else {
+                    a *= _skeleton->color.a * slot->color.a;
+                    r *= _skeleton->color.r * slot->color.r;
+                    g *= _skeleton->color.g * slot->color.g;
+                    b *= _skeleton->color.b * slot->color.b;
+                }
+                self.texture = texture;
+                CGSize size = texture.contentSize;
+                GLKVector2 center = GLKVector2Make(size.width / 2.0, size.height / 2.0);
+                GLKVector2 extents = GLKVector2Make(size.width / 2.0, size.height / 2.0);
+                if (_skipVisibilityCheck || CCRenderCheckVisbility(transform, center, extents)) {
+                    
+                    if (spSkeletonClipping_isClipping(_clipper)) {
+                        spSkeletonClipping_clipTriangles(_clipper, vertices, verticesCount, triangles, trianglesCount, uvs, 2);
+                        vertices = _clipper->clippedVertices->items;
+                        verticesCount = _clipper->clippedVertices->size;
+                        uvs = _clipper->clippedUVs->items;
+                        triangles = _clipper->clippedTriangles->items;
+                        trianglesCount = _clipper->clippedTriangles->size;
+                    }
+                    
+                    if (trianglesCount > 0) {
+                        if (!self.twoColorTint) {
+                            
+                            CCRenderState* targetRenderState = self.renderState;
+                            if(iteration == 1) {
+                                targetRenderState = _sdfRenderState;
+                            }
+                            
+                            CCRenderBuffer buffer = [renderer enqueueTriangles:(trianglesCount / 3) andVertexes:verticesCount withState:targetRenderState globalSortOrder:0];
+                            for (int i = 0; i * 2 < verticesCount; ++i) {
+                                CCVertex vertex;
+                                vertex.position = GLKVector4Make(vertices[i * 2], vertices[i * 2 + 1], 0.0, 1.0);
+                                vertex.color = GLKVector4Make(r, g, b, a);
+                                vertex.texCoord1 = GLKVector2Make(uvs[i * 2], 1 - uvs[i * 2 + 1]);
+                                if (_effect) {
+                                    spColor light;
+                                    spColor dark;
+                                    light.r = r;
+                                    light.g = g;
+                                    light.b = b;
+                                    light.a = a;
+                                    dark.r = dark.g = dark.b = dark.a = 0;
+                                    _effect->transform(_effect, &vertex.position.x, &vertex.position.y, &vertex.texCoord1.s, &vertex.texCoord1.t, &light, &dark);
+                                    vertex.color.r = light.r;
+                                    vertex.color.g = light.g;
+                                    vertex.color.b = light.b;
+                                    vertex.color.a = light.a;
+                                }
+                                CCRenderBufferSetVertex(buffer, i, CCVertexApplyTransform(vertex, transform));
+                            }
+                            for (int j = 0; j * 3 < trianglesCount; ++j) {
+                                CCRenderBufferSetTriangle(buffer, j, triangles[j * 3], triangles[j * 3 + 1], triangles[j * 3 + 2]);
+                            }
+                        } else {
+                            if (slot->darkColor) {
+                                dr = slot->darkColor->r;
+                                dg = slot->darkColor->g;
+                                db = slot->darkColor->b;
+                            } else {
+                                dr = dg = db = 0;
+                            }
+                            
+                            spMeshPart meshPart;
+                            spMesh_allocatePart(mesh, &meshPart, verticesCount / 2, trianglesCount, self.texture.name, srcBlend, dstBlend);
+                            
+                            spVertex* verts = &meshPart.mesh->vertices[meshPart.startVertex];
+                            unsigned short* indices = &meshPart.mesh->indices[meshPart.startIndex];
+                            
+                            if (_effect) {
+                                spColor light;
+                                light.r = r;
+                                light.g = g;
+                                light.b = b;
+                                light.a = a;
+                                spColor dark;
+                                dark.r = dr;
+                                dark.g = dg;
+                                dark.b = db;
+                                dark.a = da;
+                                for (int i = 0; i * 2 < verticesCount; i++, verts++) {
+                                    spColor lightCopy = light;
+                                    spColor darkCopy = dark;
+                                    
+                                    CCVertex vertex;
+                                    vertex.position = GLKVector4Make(vertices[i * 2], vertices[i * 2 + 1], 0.0, 1.0);
+                                    verts->u = uvs[i * 2];
+                                    verts->v = 1 - uvs[i * 2 + 1];
+                                    _effect->transform(_effect, &vertex.position.x, &vertex.position.y, &verts->u, &verts->v, &lightCopy, &darkCopy);
+                                    
+                                    vertex = CCVertexApplyTransform(vertex, transform);
+                                    verts->x = vertex.position.x;
+                                    verts->y = vertex.position.y;
+                                    verts->z = vertex.position.z;
+                                    verts->w = vertex.position.w;
+                                    verts->color = ((unsigned short)(lightCopy.r * 255))| ((unsigned short)(lightCopy.g * 255)) << 8 | ((unsigned short)(lightCopy.b * 255)) <<16 | ((unsigned short)(lightCopy.a * 255)) << 24;
+                                    verts->color2 = ((unsigned short)(darkCopy.r * 255)) | ((unsigned short)(darkCopy.g * 255)) << 8 | ((unsigned short)(darkCopy.b * 255)) << 16 | ((unsigned short)(darkCopy.a * 255)) << 24;
+                                    
+                                }
+                            } else {
+                                for (int i = 0; i * 2 < verticesCount; i++, verts++) {
+                                    CCVertex vertex;
+                                    vertex.position = GLKVector4Make(vertices[i * 2], vertices[i * 2 + 1], 0.0, 1.0);
+                                    vertex = CCVertexApplyTransform(vertex, transform);
+                                    verts->x = vertex.position.x;
+                                    verts->y = vertex.position.y;
+                                    verts->z = vertex.position.z;
+                                    verts->w = vertex.position.w;
+                                    verts->color = ((unsigned short)(r * 255))| ((unsigned short)(g * 255)) << 8 | ((unsigned short)(b * 255)) <<16 | ((unsigned short)(a * 255)) << 24;
+                                    verts->color2 = ((unsigned short)(dr * 255)) | ((unsigned short)(dg * 255)) << 8 | ((unsigned short)(db * 255)) << 16 | ((unsigned short)(da * 255)) << 24;
+                                    verts->u = uvs[i * 2];
+                                    verts->v = 1 - uvs[i * 2 + 1];
+                                }
+                            }
+                            
+                            for (int j = 0; j < trianglesCount; j++, indices++) {
+                                *indices = triangles[j];
+                            }
+                            
+                            [renderer enqueueBlock:^{
+                                spTwoColorBatcher_add(batcher, meshPart);
+                            } globalSortOrder:0 debugLabel: nil threadSafe: false];
+                        }
+                    }
+                }
+            }
+            spSkeletonClipping_clipEnd(_clipper, slot);
+        }
+        spSkeletonClipping_clipEnd2(_clipper);
+    }
 	
 	if (self.twoColorTint) {
 		[renderer enqueueBlock:^{

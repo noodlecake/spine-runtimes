@@ -50,6 +50,7 @@
 	CCBlendMode* screenMode;
 	spSkeletonClipping* _clipper;
 	spVertexEffect* _effect;
+    CCRenderState* _sdfRenderState;
 }
 
 + (id) skeletonWithData:(spSkeletonData*)skeletonData ownsSkeletonData:(bool)ownsSkeletonData;
@@ -94,5 +95,10 @@
 @property (nonatomic) bool skipVisibilityCheck;
 @property (nonatomic) spBone* rootBone;
 @property (nonatomic) spVertexEffect* effect;
+
+
+// custom stuff.
+@property (nonatomic, retain) CCTexture* sdfTexture;
+@property (nonatomic, assign) bool thickStroke;
 
 @end
