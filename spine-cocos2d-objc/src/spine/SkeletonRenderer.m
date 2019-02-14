@@ -190,6 +190,10 @@ static bool handlerQueued = false;
         [_sdfRenderState release];
         _sdfRenderState = nil;
     }
+    if(_drawNode) {
+        [_drawNode release];
+        _drawNode = nil;
+    }
     
 	[super dealloc];
 }
