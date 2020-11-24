@@ -220,11 +220,7 @@ static bool handlerQueued = false;
 	_skeleton->color.b = nodeColor.blue;
 	_skeleton->color.a = self.displayedOpacity;
 
-    int currentIteration = 2;
-    if(_sdfTexture)
-        currentIteration = 1;
-    
-    for(int iteration = currentIteration; iteration <= 2; iteration++) {
+    for(int iteration = 1; iteration <= 2; iteration++) {
     
         int blendMode = -1;
         uint32_t srcBlend = GL_SRC_ALPHA;
@@ -240,11 +236,13 @@ static bool handlerQueued = false;
             spSlot* slot = _skeleton->drawOrder[i];
             if (!slot->attachment) continue;
             CCTexture *texture = 0;
+            CCTexture *sdf_texture = 0;
             switch (slot->attachment->type) {
             case SP_ATTACHMENT_REGION: {
                 spRegionAttachment* attachment = (spRegionAttachment*)slot->attachment;
                 spRegionAttachment_computeWorldVertices(attachment, slot->bone, vertices, 0, 2);
                 texture = [self getTextureForRegion:attachment];
+                sdf_texture = [self getSdfTextureForRegion:attachment];
                 uvs = attachment->uvs;
                 verticesCount = 8;
                 triangles = quadTriangles;
@@ -259,6 +257,7 @@ static bool handlerQueued = false;
                 spMeshAttachment* attachment = (spMeshAttachment*)slot->attachment;
                 spVertexAttachment_computeWorldVertices(SUPER(attachment), slot, 0, attachment->super.worldVerticesLength, vertices, 0, 2);
                 texture = [self getTextureForMesh:attachment];
+                sdf_texture = [self getSdfTextureForMesh:attachment];
                 uvs = attachment->uvs;
                 verticesCount = attachment->super.worldVerticesLength;
                 triangles = attachment->triangles;
@@ -331,8 +330,17 @@ static bool handlerQueued = false;
                         if (!self.twoColorTint) {
                             
                             CCRenderState* targetRenderState = self.renderState;
-                            if(iteration == 1) {
-                                targetRenderState = _sdfRenderState;
+                            // try to do a render pass to render stroke, using the SDF shader, if we have SDF texture to use
+                            if (iteration == 1) {
+                                if (sdf_texture != 0) {
+                                    self.sdfTexture = sdf_texture;
+                                    targetRenderState = _sdfRenderState;
+                                }
+                                
+                                // if no sdf texture, skip first 'stroke' iteration and just do one render pass
+                                if (!self.sdfTexture) {
+                                    iteration = 2;
+                                }
                             }
                             
                             CCRenderBuffer buffer = [renderer enqueueTriangles:(trianglesCount / 3) andVertexes:verticesCount withState:targetRenderState globalSortOrder:0];
@@ -485,6 +493,35 @@ static bool handlerQueued = false;
 
 - (CCTexture*) getTextureForMesh:(spMeshAttachment*)attachment {
 	return (CCTexture*)((spAtlasRegion*)attachment->rendererObject)->page->rendererObject;
+}
+
+- (CCTexture*) getSdfTextureForRegion:(spRegionAttachment*)attachment {
+    spAtlasRegion* rendererObject = (spAtlasRegion*)(attachment->rendererObject);
+    return [self getSdfTextureForRendererObject:rendererObject];
+}
+
+- (CCTexture*) getSdfTextureForMesh:(spMeshAttachment*)attachment {
+    spAtlasRegion* rendererObject = (spAtlasRegion*)(attachment->rendererObject);
+    return [self getSdfTextureForRendererObject:rendererObject];
+}
+
+-(CCTexture*) getSdfTextureForRendererObject:(spAtlasRegion*)rendererObject
+{
+    if (!self.shouldSdfStroke) return nil;
+    
+    const char* name = rendererObject->page->name;
+    NSString* textureName = [NSString stringWithUTF8String:name];
+    NSString* sdfTextureName = @"";
+    if ([textureName containsString:@"SpineSmall"]) {
+        sdfTextureName = [textureName stringByReplacingOccurrencesOfString:@"SpineSmall" withString:@"SpineSmallSDF"];
+    } else if ([textureName containsString:@"Spine"]) {
+        sdfTextureName = [textureName stringByReplacingOccurrencesOfString:@"Spine" withString:@"SpineSDF"];
+    }
+    NSString* sdfTexturePath = sdfTextureName;
+    if (self.sdfTexturePathPrefix) {
+        sdfTexturePath = [self.sdfTexturePathPrefix stringByAppendingPathComponent:sdfTextureName];
+    }
+    return [CCTexture textureWithFile:sdfTexturePath];
 }
 
 - (CGRect) boundingBox {

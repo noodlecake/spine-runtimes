@@ -98,7 +98,9 @@
 
 
 // custom stuff.
+@property (nonatomic) bool shouldSdfStroke;
 @property (nonatomic, retain) CCTexture* sdfTexture;
+@property (nonatomic, retain) NSString* sdfTexturePathPrefix;
 @property (nonatomic, assign) bool thickStroke;
 
 @end
