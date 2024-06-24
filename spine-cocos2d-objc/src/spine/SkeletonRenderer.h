@@ -29,6 +29,8 @@
 
 #import <spine/spine.h>
 #import "cocos2d.h"
+#import "CCNode_Private.h"
+#import "CCTexture_Private.h"
 
 /** Draws a skeleton. */
 @interface SkeletonRenderer : CCNode<CCBlendProtocol> {
@@ -46,6 +48,7 @@
 	float* _worldVertices;
 	CCBlendMode* screenMode;
 	spSkeletonClipping* _clipper;
+    CCRenderState* _sdfRenderState;
 }
 
 + (id) skeletonWithData:(spSkeletonData*)skeletonData ownsSkeletonData:(bool)ownsSkeletonData;
@@ -89,5 +92,12 @@
 @property (nonatomic) bool debugBones;
 @property (nonatomic) bool skipVisibilityCheck;
 @property (nonatomic) spBone* rootBone;
+
+// noodle custom
+@property (nonatomic) bool shouldSdfStroke;
+@property (nonatomic, retain) CCTexture* sdfTexture;
+@property (nonatomic, retain) NSString* sdfTexturePathPrefix;
+@property (nonatomic, assign) bool thickStroke;
+//
 
 @end

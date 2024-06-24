@@ -98,7 +98,9 @@
 #define DEG_RAD (PI / 180)
 #define RAD_DEG (180 / PI)
 
+#ifndef ABS
 #define ABS(A) ((A) < 0? -(A): (A))
+#endif
 #define SIGNUM(A) ((A) < 0? -1.0f: (A) > 0 ? 1.0f : 0.0f)
 
 #ifdef __STDC_VERSION__

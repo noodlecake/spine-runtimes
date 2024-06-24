@@ -32,7 +32,12 @@
 #include <stddef.h>
 
 #include <spine/extension.h>
-
+#ifdef ANDROID
+#define GL_GLEXT_PROTOTYPES 1
+#include <EGL/egl.h> // requires ndk r5 or newer
+#include <GLES2/gl2.h>
+#include <GLES2/gl2ext.h>
+#else
 #include <TargetConditionals.h>
 #if TARGET_IPHONE_SIMULATOR || TARGET_OS_IPHONE
 #include <OpenGLES/ES2/gl.h>
@@ -41,8 +46,13 @@
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
 #endif
+#endif
 
 #include <stdio.h>
+
+#ifdef STRINGIFY
+#undef STRINGIFY
+#endif
 
 #define STRINGIFY(A) #A
 #define MAX_VERTICES 64000
