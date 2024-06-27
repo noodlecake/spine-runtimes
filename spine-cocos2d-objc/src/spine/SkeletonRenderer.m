@@ -440,7 +440,7 @@ static bool handlerQueued = false;
 			if (!slot->bone->active) continue;
 			if (!slot->attachment || slot->attachment->type != SP_ATTACHMENT_REGION) continue;
 			spRegionAttachment* attachment = (spRegionAttachment*)slot->attachment;
-			spRegionAttachment_computeWorldVertices(attachment, slot->bone, _worldVertices, 0, 2);
+			spRegionAttachment_computeWorldVertices(attachment, slot, _worldVertices, 0, 2);
 			points[0] = ccp(_worldVertices[0], _worldVertices[1]);
 			points[1] = ccp(_worldVertices[2], _worldVertices[3]);
 			points[2] = ccp(_worldVertices[4], _worldVertices[5]);
@@ -514,7 +514,7 @@ static bool handlerQueued = false;
 		int verticesCount;
 		if (slot->attachment->type == SP_ATTACHMENT_REGION) {
 			spRegionAttachment* attachment = (spRegionAttachment*)slot->attachment;
-			spRegionAttachment_computeWorldVertices(attachment, slot->bone, _worldVertices, 0, 2);
+			spRegionAttachment_computeWorldVertices(attachment, slot, _worldVertices, 0, 2);
 			verticesCount = 8;
 		} else if (slot->attachment->type == SP_ATTACHMENT_MESH) {
 			spMeshAttachment* mesh = (spMeshAttachment*)slot->attachment;
