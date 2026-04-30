@@ -95,6 +95,7 @@ static _TrackEntryListeners* getListeners (spTrackEntry* entry) {
 }
 
 - (void) initialize {
+	if (!_skeleton) return;
 	_ownsAnimationStateData = true;
     _timeScale = 1;
 
@@ -133,8 +134,10 @@ static _TrackEntryListeners* getListeners (spTrackEntry* entry) {
 }
 
 - (void) dealloc {
-	if (_ownsAnimationStateData) spAnimationStateData_dispose(_state->data);
-	spAnimationState_dispose(_state);
+	if (_state) {
+		if (_ownsAnimationStateData) spAnimationStateData_dispose(_state->data);
+		spAnimationState_dispose(_state);
+	}
 
 	[_startListener release];
     [_interruptListener release];
@@ -147,13 +150,14 @@ static _TrackEntryListeners* getListeners (spTrackEntry* entry) {
 }
 
 - (void) update:(CCTime)deltaTime {
-    
+	if (!_skeleton || !_state) return;
 	deltaTime *= _timeScale;
 	spSkeleton_update(_skeleton, deltaTime);
 	spAnimationState_update(_state, deltaTime);
 }
 
 -(void) visit:(CCRenderer *)renderer parentTransform:(const GLKMatrix4 *)parentTransform {
+	if (!_skeleton || !_state) return;
     spAnimationState_apply(_state, _skeleton);
     spSkeleton_updateWorldTransform(_skeleton);
     

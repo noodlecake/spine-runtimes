@@ -77,9 +77,11 @@ static bool handlerQueued = false;
 	
 	_ownsSkeletonData = ownsSkeletonData;
 
-	_worldVertices = MALLOC(float, 2048); // Max number of vertices per mesh.
+	// 2048 was too small
+	_worldVertices = MALLOC(float, 10240);
 
 	_skeleton = spSkeleton_create(skeletonData);
+	if (!_skeleton) return; // malloc failed under memory pressure; callers check _skeleton
 	_rootBone = _skeleton->bones[0];
 
 	_blendFunc.src = GL_ONE;
@@ -126,6 +128,7 @@ static bool handlerQueued = false;
 	if (!self) return nil;
 
 	[self initialize:skeletonData ownsSkeletonData:ownsSkeletonData];
+	if (!_skeleton) return nil;
 
 	return self;
 }
@@ -172,16 +175,19 @@ static bool handlerQueued = false;
 	if (!skeletonData) return 0;
 
 	[self initialize:skeletonData ownsSkeletonData:YES];
+	if (!_skeleton) return nil;
 
 	return self;
 }
 
 - (void) dealloc {
-	if (_ownsSkeletonData) spSkeletonData_dispose(_skeleton->data);
+	if (_skeleton) {
+		if (_ownsSkeletonData) spSkeletonData_dispose(_skeleton->data);
+		spSkeleton_dispose(_skeleton);
+	}
 	if (_atlas) spAtlas_dispose(_atlas);
-	spSkeleton_dispose(_skeleton);
 	FREE(_worldVertices);
-	spSkeletonClipping_dispose(_clipper);
+	if (_clipper) spSkeletonClipping_dispose(_clipper);
     if(_sdfTexture) {
         [_sdfTexture release];
         _sdfTexture = nil;
@@ -212,6 +218,8 @@ static bool handlerQueued = false;
 		handlerQueued = true;
 	}
 	
+	if (!_skeleton) return;
+
 	if (_effect) _effect->begin(_effect, _skeleton);
 	
 	CCColor* nodeColor = self.color;
