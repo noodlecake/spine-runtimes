@@ -56,10 +56,12 @@
 + (id) skeletonWithData:(spSkeletonData*)skeletonData ownsSkeletonData:(bool)ownsSkeletonData;
 + (id) skeletonWithFile:(NSString*)skeletonDataFile atlas:(spAtlas*)atlas scale:(float)scale;
 + (id) skeletonWithFile:(NSString*)skeletonDataFile atlasFile:(NSString*)atlasFile scale:(float)scale;
++ (id) skeletonWithBinaryFile:(NSString*)skeletonDataFile atlasFile:(NSString*)atlasFile scale:(float)scale;
 
 - (id) initWithData:(spSkeletonData*)skeletonData ownsSkeletonData:(bool)ownsSkeletonData;
 - (id) initWithFile:(NSString*)skeletonDataFile atlas:(spAtlas*)atlas scale:(float)scale;
 - (id) initWithFile:(NSString*)skeletonDataFile atlasFile:(NSString*)atlasFile scale:(float)scale;
+- (id) initWithBinaryFile:(NSString*)skeletonDataFile atlasFile:(NSString*)atlasFile scale:(float)scale;
 
 - (CCTexture*) getTextureForRegion:(spRegionAttachment*)attachment;
 - (CCTexture*) getTextureForMesh:(spMeshAttachment*)attachment;

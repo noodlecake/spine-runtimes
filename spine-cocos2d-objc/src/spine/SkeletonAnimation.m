@@ -94,6 +94,10 @@ static _TrackEntryListeners* getListeners (spTrackEntry* entry) {
 	return [[[self alloc] initWithFile:skeletonDataFile atlasFile:atlasFile scale:scale] autorelease];
 }
 
++ (id) skeletonWithBinaryFile:(NSString*)skeletonDataFile atlasFile:(NSString*)atlasFile scale:(float)scale {
+	return [[[self alloc] initWithBinaryFile:skeletonDataFile atlasFile:atlasFile scale:scale] autorelease];
+}
+
 - (void) initialize {
 	if (!_skeleton) return;
 	_ownsAnimationStateData = true;
@@ -127,9 +131,18 @@ static _TrackEntryListeners* getListeners (spTrackEntry* entry) {
 - (id) initWithFile:(NSString*)skeletonDataFile atlasFile:(NSString*)atlasFile scale:(float)scale {
 	self = [super initWithFile:skeletonDataFile atlasFile:atlasFile scale:scale];
 	if (!self) return nil;
-	
+
 	[self initialize];
-	
+
+	return self;
+}
+
+- (id) initWithBinaryFile:(NSString*)skeletonDataFile atlasFile:(NSString*)atlasFile scale:(float)scale {
+	self = [super initWithBinaryFile:skeletonDataFile atlasFile:atlasFile scale:scale];
+	if (!self) return nil;
+
+	[self initialize];
+
 	return self;
 }
 

@@ -65,6 +65,10 @@ static bool handlerQueued = false;
 	return [[[self alloc] initWithFile:skeletonDataFile atlasFile:atlasFile scale:scale] autorelease];
 }
 
++ (id) skeletonWithBinaryFile:(NSString*)skeletonDataFile atlasFile:(NSString*)atlasFile scale:(float)scale {
+	return [[[self alloc] initWithBinaryFile:skeletonDataFile atlasFile:atlasFile scale:scale] autorelease];
+}
+
 - (void) initialize:(spSkeletonData*)skeletonData ownsSkeletonData:(bool)ownsSkeletonData {
 	if (!batcher) {
 		batcher = spTwoColorBatcher_create();
@@ -172,6 +176,33 @@ static bool handlerQueued = false;
     }
 	NSAssert(skeletonData, ([NSString stringWithFormat:@"Error reading skeleton data file: %@\nError: %s", skeletonDataFile, json->error]));
 	spSkeletonJson_dispose(json);
+	if (!skeletonData) return 0;
+
+	[self initialize:skeletonData ownsSkeletonData:YES];
+	if (!_skeleton) return nil;
+
+	return self;
+}
+
+- (id) initWithBinaryFile:(NSString*)skeletonDataFile atlasFile:(NSString*)atlasFile scale:(float)scale {
+	self = [super init];
+	if (!self) return nil;
+
+    @synchronized(self.class) {
+        _atlas = spAtlas_createFromFile([atlasFile UTF8String], 0);
+    }
+	NSAssert(_atlas, ([NSString stringWithFormat:@"Error reading atlas file: %@", atlasFile]));
+	if (!_atlas) return 0;
+
+	spSkeletonBinary* binary = spSkeletonBinary_create(_atlas);
+	binary->scale = scale;
+    spSkeletonData* skeletonData;
+
+    @synchronized(self.class) {
+        skeletonData = spSkeletonBinary_readSkeletonDataFile(binary, [skeletonDataFile UTF8String]);
+    }
+	NSAssert(skeletonData, ([NSString stringWithFormat:@"Error reading skeleton data file: %@\nError: %s", skeletonDataFile, binary->error]));
+	spSkeletonBinary_dispose(binary);
 	if (!skeletonData) return 0;
 
 	[self initialize:skeletonData ownsSkeletonData:YES];

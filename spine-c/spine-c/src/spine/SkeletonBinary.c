@@ -865,15 +865,29 @@ spSkeletonData* spSkeletonBinary_readSkeletonData (spSkeletonBinary* self, const
 	skeletonData = spSkeletonData_create();
 
 	skeletonData->hash = readString(input);
-	if (!strlen(skeletonData->hash)) {
+	/* readString returns NULL (not "") for a zero-length string, so guard strlen against NULL. */
+	if (skeletonData->hash && !strlen(skeletonData->hash)) {
 		FREE(skeletonData->hash);
 		skeletonData->hash = 0;
 	}
 
 	skeletonData->version = readString(input);
-	if (!strlen(skeletonData->version)) {
+	if (skeletonData->version && !strlen(skeletonData->version)) {
 		FREE(skeletonData->version);
 		skeletonData->version = 0;
+	}
+
+	/* Reject skeletons exported from a different Spine version. The binary format is
+	 * positional and version-specific (e.g. 3.7 added audio fields to events), so a
+	 * mismatched .skel desyncs the cursor and reads past field boundaries, yielding a
+	 * NULL string that crashes in strlen. Fail cleanly here so callers can fall back to
+	 * the version-tolerant .json path instead of taking a SIGSEGV. */
+	if (!skeletonData->version || strncmp(skeletonData->version, "3.6", 3) != 0) {
+		_spSkeletonBinary_setError(self, "Skeleton binary version mismatch (runtime is 3.6): version=",
+			skeletonData->version ? skeletonData->version : "(none)");
+		FREE(input);
+		spSkeletonData_dispose(skeletonData);
+		return 0;
 	}
 
 	skeletonData->width = readFloat(input);
@@ -1067,7 +1081,9 @@ spSkeletonData* spSkeletonBinary_readSkeletonData (spSkeletonBinary* self, const
 	for (i = 0; i < skeletonData->eventsCount; ++i) {
 		const char* name = readString(input);
 		/* TODO Avoid copying of skinName */
-		spEventData* eventData = spEventData_create(name);
+		/* readString returns NULL for a zero-length name; spEventData_create -> MALLOC_STR
+		 * would strlen(NULL) and crash. Pass "" so a desynced/corrupt stream fails soft. */
+		spEventData* eventData = spEventData_create(name ? name : "");
 		FREE(name);
 		eventData->intValue = readVarint(input, 0);
 		eventData->floatValue = readFloat(input);
