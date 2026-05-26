@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 package com.esotericsoftware.spine;
@@ -100,22 +99,29 @@ public class PathConstraint implements Constraint {
 		if (!translate && !rotate) return;
 
 		PathConstraintData data = this.data;
-		SpacingMode spacingMode = data.spacingMode;
-		boolean lengthSpacing = spacingMode == SpacingMode.length;
+		boolean percentSpacing = data.spacingMode == SpacingMode.percent;
 		RotateMode rotateMode = data.rotateMode;
 		boolean tangents = rotateMode == RotateMode.tangent, scale = rotateMode == RotateMode.chainScale;
 		int boneCount = this.bones.size, spacesCount = tangents ? boneCount : boneCount + 1;
 		Object[] bones = this.bones.items;
 		float[] spaces = this.spaces.setSize(spacesCount), lengths = null;
 		float spacing = this.spacing;
-		if (scale || lengthSpacing) {
+		if (scale || !percentSpacing) {
 			if (scale) lengths = this.lengths.setSize(boneCount);
+			boolean lengthSpacing = data.spacingMode == SpacingMode.length;
 			for (int i = 0, n = spacesCount - 1; i < n;) {
 				Bone bone = (Bone)bones[i];
 				float setupLength = bone.data.length;
 				if (setupLength < epsilon) {
 					if (scale) lengths[i] = 0;
 					spaces[++i] = 0;
+				} else if (percentSpacing) {
+					if (scale) {
+						float x = setupLength * bone.a, y = setupLength * bone.c;
+						float length = (float)Math.sqrt(x * x + y * y);
+						lengths[i] = length;
+					}
+					spaces[++i] = spacing;
 				} else {
 					float x = setupLength * bone.a, y = setupLength * bone.c;
 					float length = (float)Math.sqrt(x * x + y * y);
@@ -129,7 +135,7 @@ public class PathConstraint implements Constraint {
 		}
 
 		float[] positions = computeWorldPositions((PathAttachment)attachment, spacesCount, tangents,
-			data.positionMode == PositionMode.percent, spacingMode == SpacingMode.percent);
+			data.positionMode == PositionMode.percent, percentSpacing);
 		float boneX = positions[0], boneY = positions[1], offsetRotation = data.offsetRotation;
 		boolean tip;
 		if (offsetRotation == 0)
@@ -201,7 +207,7 @@ public class PathConstraint implements Constraint {
 			float pathLength = lengths[curveCount];
 			if (percentPosition) position *= pathLength;
 			if (percentSpacing) {
-				for (int i = 0; i < spacesCount; i++)
+				for (int i = 1; i < spacesCount; i++)
 					spaces[i] *= pathLength;
 			}
 			world = this.world.setSize(8);
@@ -307,9 +313,12 @@ public class PathConstraint implements Constraint {
 			x1 = x2;
 			y1 = y2;
 		}
-		if (percentPosition) position *= pathLength;
+		if (percentPosition)
+			position *= pathLength;
+		else
+			position *= pathLength / path.getLengths()[curveCount - 1];
 		if (percentSpacing) {
-			for (int i = 0; i < spacesCount; i++)
+			for (int i = 1; i < spacesCount; i++)
 				spaces[i] *= pathLength;
 		}
 
@@ -420,14 +429,23 @@ public class PathConstraint implements Constraint {
 
 	private void addCurvePosition (float p, float x1, float y1, float cx1, float cy1, float cx2, float cy2, float x2, float y2,
 		float[] out, int o, boolean tangents) {
-		if (p < epsilon || Float.isNaN(p)) p = epsilon;
+		if (p < epsilon || Float.isNaN(p)) {
+			out[o] = x1;
+			out[o + 1] = y1;
+			out[o + 2] = (float)Math.atan2(cy1 - y1, cx1 - x1);
+			return;
+		}
 		float tt = p * p, ttt = tt * p, u = 1 - p, uu = u * u, uuu = uu * u;
 		float ut = u * p, ut3 = ut * 3, uut3 = u * ut3, utt3 = ut3 * p;
 		float x = x1 * uuu + cx1 * uut3 + cx2 * utt3 + x2 * ttt, y = y1 * uuu + cy1 * uut3 + cy2 * utt3 + y2 * ttt;
 		out[o] = x;
 		out[o + 1] = y;
-		if (tangents)
-			out[o + 2] = (float)Math.atan2(y - (y1 * uu + cy1 * ut * 2 + cy2 * tt), x - (x1 * uu + cx1 * ut * 2 + cx2 * tt));
+		if (tangents) {
+			if (p < 0.001f)
+				out[o + 2] = (float)Math.atan2(cy1 - y1, cx1 - x1);
+			else
+				out[o + 2] = (float)Math.atan2(y - (y1 * uu + cy1 * ut * 2 + cy2 * tt), x - (x1 * uu + cx1 * ut * 2 + cx2 * tt));
+		}
 	}
 
 	public int getOrder () {

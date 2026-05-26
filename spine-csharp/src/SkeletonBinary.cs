@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 #if (UNITY_5 || UNITY_5_3_OR_NEWER || UNITY_WSA || UNITY_WP8 || UNITY_WP8_1)
@@ -151,8 +150,12 @@ namespace Spine {
 
 			if (nonessential) {
 				skeletonData.fps = ReadFloat(input);
+
 				skeletonData.imagesPath = ReadString(input);
-				if (skeletonData.imagesPath.Length == 0) skeletonData.imagesPath = null;
+				if (string.IsNullOrEmpty(skeletonData.imagesPath)) skeletonData.imagesPath = null;
+
+				skeletonData.audioPath = ReadString(input);
+				if (string.IsNullOrEmpty(skeletonData.audioPath)) skeletonData.audioPath = null;
 			}
 
 			// Bones.
@@ -206,6 +209,9 @@ namespace Spine {
 				data.target = skeletonData.bones.Items[ReadVarint(input, true)];
 				data.mix = ReadFloat(input);
 				data.bendDirection = ReadSByte(input);
+				data.compress = ReadBoolean(input);
+				data.stretch = ReadBoolean(input);
+				data.uniform = ReadBoolean(input);
 				skeletonData.ikConstraints.Add(data);
 			}
 
@@ -280,6 +286,11 @@ namespace Spine {
 				data.Int = ReadVarint(input, false);
 				data.Float = ReadFloat(input);
 				data.String = ReadString(input);
+				data.AudioPath = ReadString(input);
+				if (data.AudioPath != null) {
+					data.Volume = ReadFloat(input);
+					data.Balance = ReadFloat(input);
+				}
 				skeletonData.events.Add(data);
 			}
 
@@ -640,10 +651,11 @@ namespace Spine {
 			for (int i = 0, n = ReadVarint(input, true); i < n; i++) {				
 				int index = ReadVarint(input, true);
 				int frameCount = ReadVarint(input, true);
-				IkConstraintTimeline timeline = new IkConstraintTimeline(frameCount);
-				timeline.ikConstraintIndex = index;
+				IkConstraintTimeline timeline = new IkConstraintTimeline(frameCount) {
+					ikConstraintIndex = index
+				};
 				for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
-					timeline.SetFrame(frameIndex, ReadFloat(input), ReadFloat(input), ReadSByte(input));
+					timeline.SetFrame(frameIndex, ReadFloat(input), ReadFloat(input), ReadSByte(input), ReadBoolean(input), ReadBoolean(input));
 					if (frameIndex < frameCount - 1) ReadCurve(input, frameIndex, timeline);
 				}
 				timelines.Add(timeline);
@@ -795,10 +807,15 @@ namespace Spine {
 				for (int i = 0; i < eventCount; i++) {
 					float time = ReadFloat(input);
 					EventData eventData = skeletonData.events.Items[ReadVarint(input, true)];
-					Event e = new Event(time, eventData);
-					e.Int = ReadVarint(input, false);
-					e.Float = ReadFloat(input);
-					e.String = ReadBoolean(input) ? ReadString(input) : eventData.String;
+					Event e = new Event(time, eventData) {
+						Int = ReadVarint(input, false),
+						Float = ReadFloat(input),
+						String = ReadBoolean(input) ? ReadString(input) : eventData.String
+					};
+					if (e.data.AudioPath != null) {
+						e.volume = ReadFloat(input);
+						e.balance = ReadFloat(input);
+					}
 					timeline.SetFrame(i, e);
 				}
 				timelines.Add(timeline);

@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 #include "SpinePluginPrivatePCH.h"
@@ -37,6 +36,8 @@
 
 #define LOCTEXT_NAMESPACE "Spine"
 
+using namespace spine;
+
 FName USpineSkeletonDataAsset::GetSkeletonDataFileName () const {
 #if WITH_EDITORONLY_DATA
 	TArray<FString> files;
@@ -46,10 +47,6 @@ FName USpineSkeletonDataAsset::GetSkeletonDataFileName () const {
 #else
 	return skeletonDataFileName;
 #endif
-}
-
-TArray<uint8>& USpineSkeletonDataAsset::GetRawData () {
-	return this->rawData;
 }
 
 #if WITH_EDITORONLY_DATA
@@ -78,52 +75,142 @@ void USpineSkeletonDataAsset::Serialize (FArchive& Ar) {
 	Super::Serialize(Ar);
 	if (Ar.IsLoading() && Ar.UE4Ver() < VER_UE4_ASSET_IMPORT_DATA_AS_JSON && !importData)
 		importData = NewObject<UAssetImportData>(this, TEXT("AssetImportData"));
+	LoadInfo();
 }
 
 #endif
 
 void USpineSkeletonDataAsset::BeginDestroy () {
 	if (this->skeletonData) {
-		spSkeletonData_dispose(this->skeletonData);
+		delete this->skeletonData;
 		this->skeletonData = nullptr;
 	}
 	if (this->animationStateData) {
-		spAnimationStateData_dispose(this->animationStateData);
+		delete this->animationStateData;
 		this->animationStateData = nullptr;
 	}
 	Super::BeginDestroy();
 }
 
-spSkeletonData* USpineSkeletonDataAsset::GetSkeletonData (spAtlas* Atlas, bool ForceReload) {
-	if (!skeletonData || ForceReload) {
+class SP_API NullAttachmentLoader : public AttachmentLoader {
+public:
+
+	virtual RegionAttachment* newRegionAttachment(Skin& skin, const String& name, const String& path) {
+		return new(__FILE__, __LINE__) RegionAttachment(name);
+	}
+
+	virtual MeshAttachment* newMeshAttachment(Skin& skin, const String& name, const String& path) {
+		return new(__FILE__, __LINE__) MeshAttachment(name);
+	}
+
+	virtual BoundingBoxAttachment* newBoundingBoxAttachment(Skin& skin, const String& name) {
+		return new(__FILE__, __LINE__) BoundingBoxAttachment(name);
+	}
+
+	virtual PathAttachment* newPathAttachment(Skin& skin, const String& name) {
+		return new(__FILE__, __LINE__) PathAttachment(name);
+	}
+
+	virtual PointAttachment* newPointAttachment(Skin& skin, const String& name) {
+		return new(__FILE__, __LINE__) PointAttachment(name);
+	}
+
+	virtual ClippingAttachment* newClippingAttachment(Skin& skin, const String& name) {
+		return new(__FILE__, __LINE__) ClippingAttachment(name);
+	}
+
+	virtual void configureAttachment(Attachment* attachment) {
+
+	}
+};
+
+void USpineSkeletonDataAsset::LoadInfo() {
+#if WITH_EDITORONLY_DATA
+	int dataLen = rawData.Num();
+	if (dataLen == 0) return;
+	NullAttachmentLoader loader;
+	SkeletonData* skeletonData = nullptr;
+	if (skeletonDataFileName.GetPlainNameString().Contains(TEXT(".json"))) {
+		SkeletonJson* json = new (__FILE__, __LINE__) SkeletonJson(&loader);
+		skeletonData = json->readSkeletonData((const char*)rawData.GetData());
+		if (!skeletonData) {
+			FMessageDialog::Debugf(FText::FromString(UTF8_TO_TCHAR(json->getError().buffer())));
+			UE_LOG(SpineLog, Error, TEXT("Couldn't load skeleton data and atlas: %s"), UTF8_TO_TCHAR(json->getError().buffer()));
+		}
+		delete json;
+	} else {
+		SkeletonBinary* binary = new (__FILE__, __LINE__) SkeletonBinary(&loader);
+		skeletonData = binary->readSkeletonData((const unsigned char*)rawData.GetData(), (int)rawData.Num());
+		if (!skeletonData) {
+			FMessageDialog::Debugf(FText::FromString(UTF8_TO_TCHAR(binary->getError().buffer())));
+			UE_LOG(SpineLog, Error, TEXT("Couldn't load skeleton data and atlas: %s"), UTF8_TO_TCHAR(binary->getError().buffer()));
+		}
+		delete binary;
+	}
+	if (skeletonData) {
+		Bones.Empty();
+		for (int i = 0; i < skeletonData->getBones().size(); i++)
+			Bones.Add(UTF8_TO_TCHAR(skeletonData->getBones()[i]->getName().buffer()));
+		Skins.Empty();
+		for (int i = 0; i < skeletonData->getSkins().size(); i++)
+			Skins.Add(UTF8_TO_TCHAR(skeletonData->getSkins()[i]->getName().buffer()));
+		Slots.Empty();
+		for (int i = 0; i < skeletonData->getSlots().size(); i++)
+			Slots.Add(UTF8_TO_TCHAR(skeletonData->getSlots()[i]->getName().buffer()));
+		Animations.Empty();
+		for (int i = 0; i < skeletonData->getAnimations().size(); i++)
+			Animations.Add(UTF8_TO_TCHAR(skeletonData->getAnimations()[i]->getName().buffer()));
+		Events.Empty();
+		for (int i = 0; i < skeletonData->getEvents().size(); i++)
+			Events.Add(UTF8_TO_TCHAR(skeletonData->getEvents()[i]->getName().buffer()));
+		delete skeletonData;
+	}
+#endif
+}
+
+void USpineSkeletonDataAsset::SetRawData(TArray<uint8> &Data) {
+	this->rawData.Empty();
+	this->rawData.Append(Data);
+
+	if (skeletonData) {
+		delete skeletonData;
+		skeletonData = nullptr;
+	}
+
+	LoadInfo();
+}
+
+SkeletonData* USpineSkeletonDataAsset::GetSkeletonData (Atlas* Atlas) {
+	if (!skeletonData || lastAtlas != Atlas) {
 		if (skeletonData) {
-			spSkeletonData_dispose(skeletonData);
+			delete skeletonData;
 			skeletonData = nullptr;
 		}		
 		int dataLen = rawData.Num();
 		if (skeletonDataFileName.GetPlainNameString().Contains(TEXT(".json"))) {
-			spSkeletonJson* json = spSkeletonJson_create(Atlas);
-			this->skeletonData = spSkeletonJson_readSkeletonData(json, (const char*)rawData.GetData());
+			SkeletonJson* json = new (__FILE__, __LINE__) SkeletonJson(Atlas);
+			this->skeletonData = json->readSkeletonData((const char*)rawData.GetData());
 			if (!skeletonData) {
 #if WITH_EDITORONLY_DATA
-				FMessageDialog::Debugf(FText::FromString(UTF8_TO_TCHAR(json->error)));
+				FMessageDialog::Debugf(FText::FromString(UTF8_TO_TCHAR(json->getError().buffer())));
 #endif
-				UE_LOG(SpineLog, Error, TEXT("Couldn't load skeleton data and atlas: %s"), UTF8_TO_TCHAR(json->error));
+				UE_LOG(SpineLog, Error, TEXT("Couldn't load skeleton data and atlas: %s"), UTF8_TO_TCHAR(json->getError().buffer()));
 			}
-			spSkeletonJson_dispose(json);
+			delete json;
 		} else {
-			spSkeletonBinary* binary = spSkeletonBinary_create(Atlas);
-			this->skeletonData = spSkeletonBinary_readSkeletonData(binary, (const unsigned char*)rawData.GetData(), (int)rawData.Num());
+			SkeletonBinary* binary = new (__FILE__, __LINE__) SkeletonBinary(Atlas);
+			this->skeletonData = binary->readSkeletonData((const unsigned char*)rawData.GetData(), (int)rawData.Num());
 			if (!skeletonData) {
 #if WITH_EDITORONLY_DATA
-				FMessageDialog::Debugf(FText::FromString(UTF8_TO_TCHAR(binary->error)));
+				FMessageDialog::Debugf(FText::FromString(UTF8_TO_TCHAR(binary->getError().buffer())));
 #endif
-				UE_LOG(SpineLog, Error, TEXT("Couldn't load skeleton data and atlas: %s"), UTF8_TO_TCHAR(binary->error));
+				UE_LOG(SpineLog, Error, TEXT("Couldn't load skeleton data and atlas: %s"), UTF8_TO_TCHAR(binary->getError().buffer()));
 			}
-			spSkeletonBinary_dispose(binary);
+			delete binary;
 		}
 		if (animationStateData) {
-			spAnimationStateData_dispose(animationStateData);
+			delete animationStateData;
+			animationStateData = nullptr;
 			GetAnimationStateData(Atlas);
 		}
 		lastAtlas = Atlas;
@@ -131,19 +218,19 @@ spSkeletonData* USpineSkeletonDataAsset::GetSkeletonData (spAtlas* Atlas, bool F
 	return this->skeletonData;
 }
 
-spAnimationStateData* USpineSkeletonDataAsset::GetAnimationStateData(spAtlas* atlas) {
+AnimationStateData* USpineSkeletonDataAsset::GetAnimationStateData(Atlas* atlas) {
 	if (!animationStateData) {
-		spSkeletonData* skeletonData = GetSkeletonData(atlas, false);
-		animationStateData = spAnimationStateData_create(skeletonData);
+		SkeletonData* data = GetSkeletonData(atlas);
+		animationStateData = new (__FILE__, __LINE__) AnimationStateData(data);
 	}
 	for (auto& data : MixData) {
 		if (!data.From.IsEmpty() && !data.To.IsEmpty()) {
 			const char* fromChar = TCHAR_TO_UTF8(*data.From);
 			const char* toChar = TCHAR_TO_UTF8(*data.To);
-			spAnimationStateData_setMixByName(animationStateData, fromChar, toChar, data.Mix);
+			animationStateData->setMix(fromChar, toChar, data.Mix);
 		}
 	}
-	animationStateData->defaultMix = DefaultMix;
+	animationStateData->setDefaultMix(DefaultMix);
 	return this->animationStateData;
 }
 

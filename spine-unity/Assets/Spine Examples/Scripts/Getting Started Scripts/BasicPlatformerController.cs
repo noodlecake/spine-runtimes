@@ -1,39 +1,54 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 using UnityEngine;
+using UnityEngine.Events;
 using Spine.Unity;
 
 namespace Spine.Unity.Examples {
+
 	[RequireComponent(typeof(CharacterController))]
 	public class BasicPlatformerController : MonoBehaviour {
+
+		public enum CharacterState {
+			None,
+			Idle,
+			Walk,
+			Run,
+			Crouch,
+			Rise,
+			Fall,
+			Attack
+		}
+
+		[Header("Components")]
+		public CharacterController controller;
 
 		[Header("Controls")]
 		public string XAxis = "Horizontal";
@@ -52,37 +67,19 @@ namespace Spine.Unity.Examples {
 		public float forceCrouchVelocity = 25;
 		public float forceCrouchDuration = 0.5f;
 
-		[Header("Visuals")]
-		public SkeletonAnimation skeletonAnimation;
-
 		[Header("Animation")]
-		public AnimationReferenceAsset walk;
-		public AnimationReferenceAsset run;
-		public AnimationReferenceAsset idle;
-		public AnimationReferenceAsset jump;
-		public AnimationReferenceAsset fall;
-		public AnimationReferenceAsset crouch;
-		public AnimationReferenceAsset runFromFall;
+		public SkeletonAnimationHandleExample animationHandle;
 
-		[Header("Effects")]
-		public AudioSource jumpAudioSource;
-		public AudioSource hardfallAudioSource;
-		public ParticleSystem landParticles;
-		public HandleEventWithAudioExample footstepHandler;
+		// Events
+		public event UnityAction OnJump, OnLand, OnHardLand;
 
-		CharacterController controller;
 		Vector2 input = default(Vector2);
 		Vector3 velocity = default(Vector3);
 		float minimumJumpEndTime = 0;
 		float forceCrouchEndTime;
 		bool wasGrounded = false;
 
-		AnimationReferenceAsset targetAnimation;
-		AnimationReferenceAsset previousTargetAnimation;
-
-		void Awake () {
-			controller = GetComponent<CharacterController>();
-		}
+		CharacterState previousState, currentState;
 
 		void Update () {
 			float dt = Time.deltaTime;
@@ -120,7 +117,6 @@ namespace Spine.Unity.Examples {
 			// Dummy physics and controller using UnityEngine.CharacterController.
 			Vector3 gravityDeltaVelocity = Physics.gravity * gravityScale * dt;
 			
-
 			if (doJump) {
 				velocity.y = jumpSpeed;
 				minimumJumpEndTime = Time.time + minimumJumpDuration;
@@ -147,53 +143,77 @@ namespace Spine.Unity.Examples {
 				}
 			}
 			controller.Move(velocity * dt);
-
-			// Animation
+			wasGrounded = isGrounded;
+			
+			// Determine and store character state
 			if (isGrounded) {
 				if (doCrouch) {
-					targetAnimation = crouch;
+					currentState = CharacterState.Crouch;
 				} else {
 					if (input.x == 0)
-						targetAnimation = idle;
+						currentState = CharacterState.Idle;
 					else
-						targetAnimation = Mathf.Abs(input.x) > 0.6f ? run : walk;
+						currentState = Mathf.Abs(input.x) > 0.6f ? CharacterState.Run : CharacterState.Walk;
 				}
 			} else {
-				targetAnimation = velocity.y > 0 ? jump : fall;
+				currentState = velocity.y > 0 ? CharacterState.Rise : CharacterState.Fall;
 			}
 
+			bool stateChanged = previousState != currentState;
+			previousState = currentState;
 
-			if (previousTargetAnimation != targetAnimation) {
-				if (targetAnimation == run && previousTargetAnimation == fall) {
-					skeletonAnimation.AnimationState.SetAnimation(0, runFromFall, false);
-					skeletonAnimation.AnimationState.AddAnimation(0, run, true, 0f);
-				} else {
-					skeletonAnimation.AnimationState.SetAnimation(0, targetAnimation, true);
-				}
-			}
-			previousTargetAnimation = targetAnimation;
+			// Animation
+			// Do not modify character parameters or state in this phase. Just read them.
+			// Detect changes in state, and communicate with animation handle if it changes.
+			if (stateChanged)
+				HandleStateChanged();
 
 			if (input.x != 0)
-				skeletonAnimation.Skeleton.FlipX = input.x < 0;
+				animationHandle.SetFlip(input.x);
 
-
-			// Effects
+			// Fire events.
 			if (doJump) {
-				jumpAudioSource.Stop();
-				jumpAudioSource.Play();
+				OnJump.Invoke();
 			}
-
 			if (landed) {
 				if (hardLand) {
-					hardfallAudioSource.Play();
+					OnHardLand.Invoke();
 				} else {
-					footstepHandler.Play();
+					OnLand.Invoke();
 				}
+			}
+		}
 
-				landParticles.Emit((int)(velocity.y / -9f) + 2);
+		void HandleStateChanged () {
+			// When the state changes, notify the animation handle of the new state.
+			string stateName = null;
+			switch (currentState) {
+				case CharacterState.Idle:
+					stateName = "idle";
+					break;
+				case CharacterState.Walk:
+					stateName = "walk";
+					break;
+				case CharacterState.Run:
+					stateName = "run";
+					break;
+				case CharacterState.Crouch:
+					stateName = "crouch";
+					break;
+				case CharacterState.Rise:
+					stateName = "rise";
+					break;
+				case CharacterState.Fall:
+					stateName = "fall";
+					break;
+				case CharacterState.Attack:
+					stateName = "attack";
+					break;
+				default:
+					break;
 			}
 
-			wasGrounded = isGrounded;
+			animationHandle.PlayAnimationForState(stateName, 0);
 		}
 
 	}

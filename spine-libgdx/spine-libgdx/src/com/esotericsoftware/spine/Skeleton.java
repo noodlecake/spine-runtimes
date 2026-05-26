@@ -1,43 +1,42 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 package com.esotericsoftware.spine;
 
-import static com.esotericsoftware.spine.utils.SpineUtils.cosDeg;
-import static com.esotericsoftware.spine.utils.SpineUtils.sinDeg;
+import static com.esotericsoftware.spine.utils.SpineUtils.*;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.FloatArray;
 import com.badlogic.gdx.utils.ObjectMap.Entry;
+
 import com.esotericsoftware.spine.Skin.Key;
 import com.esotericsoftware.spine.attachments.Attachment;
 import com.esotericsoftware.spine.attachments.MeshAttachment;
@@ -61,7 +60,7 @@ public class Skeleton {
 	Skin skin;
 	final Color color;
 	float time;
-	boolean flipX, flipY;
+	float scaleX = 1, scaleY = 1;
 	float x, y;
 
 	public Skeleton (SkeletonData data) {
@@ -150,8 +149,8 @@ public class Skeleton {
 		skin = skeleton.skin;
 		color = new Color(skeleton.color);
 		time = skeleton.time;
-		flipX = skeleton.flipX;
-		flipY = skeleton.flipY;
+		scaleX = skeleton.scaleX;
+		scaleY = skeleton.scaleY;
 
 		updateCache();
 	}
@@ -331,9 +330,9 @@ public class Skeleton {
 		for (int i = 0, n = updateCache.size; i < n; i++)
 			updateCache.get(i).update();
 	}
-	
-	/** Updates the world transform for each bone and applies all constraints. The 
-	 *  root bone will be temporarily parented to the specified bone.
+
+	/** Updates the world transform for each bone and applies all constraints. The root bone will be temporarily parented to the
+	 * specified bone.
 	 * <p>
 	 * See <a href="http://esotericsoftware.com/spine-runtime-skeletons#World-transforms">World transforms</a> in the Spine
 	 * Runtimes Guide. */
@@ -353,7 +352,7 @@ public class Skeleton {
 			bone.ashearY = bone.shearY;
 			bone.appliedValid = true;
 		}
-		
+
 		// Apply the parent bone transform to the root bone. The root bone
 		// always inherits scale, rotation and reflection.
 		Bone rootBone = getRootBone();
@@ -366,20 +365,11 @@ public class Skeleton {
 		float lb = cosDeg(rotationY) * rootBone.scaleY;
 		float lc = sinDeg(rootBone.rotation + rootBone.shearX) * rootBone.scaleX;
 		float ld = sinDeg(rotationY) * rootBone.scaleY;
-		rootBone.a = pa * la + pb * lc;
-		rootBone.b = pa * lb + pb * ld;
-		rootBone.c = pc * la + pd * lc;
-		rootBone.d = pc * lb + pd * ld;
-		
-		if (flipY) {
-			rootBone.a = -rootBone.a;
-			rootBone.b = -rootBone.b;
-		}
-		if (flipX) {
-			rootBone.c = -rootBone.c;
-			rootBone.d = -rootBone.d;
-		}
-		
+		rootBone.a = (pa * la + pb * lc) * scaleX;
+		rootBone.b = (pa * lb + pb * ld) * scaleX;
+		rootBone.c = (pc * la + pd * lc) * scaleY;
+		rootBone.d = (pc * lb + pd * ld) * scaleY;
+
 		// Update everything except root bone.
 		Array<Updatable> updateCache = this.updateCache;
 		for (int i = 0, n = updateCache.size; i < n; i++) {
@@ -403,8 +393,10 @@ public class Skeleton {
 		Array<IkConstraint> ikConstraints = this.ikConstraints;
 		for (int i = 0, n = ikConstraints.size; i < n; i++) {
 			IkConstraint constraint = ikConstraints.get(i);
-			constraint.bendDirection = constraint.data.bendDirection;
 			constraint.mix = constraint.data.mix;
+			constraint.bendDirection = constraint.data.bendDirection;
+			constraint.compress = constraint.data.compress;
+			constraint.stretch = constraint.data.stretch;
 		}
 
 		Array<TransformConstraint> transformConstraints = this.transformConstraints;
@@ -685,29 +677,29 @@ public class Skeleton {
 		this.color.set(color);
 	}
 
-	/** If true, the entire skeleton is flipped over the Y axis. This affects all bones, even if the bone's transform mode
-	 * disallows scale inheritance. */
-	public boolean getFlipX () {
-		return flipX;
+	/** Scales the entire skeleton on the X axis. This affects all bones, even if the bone's transform mode disallows scale
+	 * inheritance. */
+	public float getScaleX () {
+		return scaleX;
 	}
 
-	public void setFlipX (boolean flipX) {
-		this.flipX = flipX;
+	public void setScaleX (float scaleX) {
+		this.scaleX = scaleX;
 	}
 
-	/** If true, the entire skeleton is flipped over the X axis. This affects all bones, even if the bone's transform mode
-	 * disallows scale inheritance. */
-	public boolean getFlipY () {
-		return flipY;
+	/** Scales the entire skeleton on the Y axis. This affects all bones, even if the bone's transform mode disallows scale
+	 * inheritance. */
+	public float getScaleY () {
+		return scaleY;
 	}
 
-	public void setFlipY (boolean flipY) {
-		this.flipY = flipY;
+	public void setScaleY (float scaleY) {
+		this.scaleY = scaleY;
 	}
 
-	public void setFlip (boolean flipX, boolean flipY) {
-		this.flipX = flipX;
-		this.flipY = flipY;
+	public void setScale (float scaleX, float scaleY) {
+		this.scaleX = scaleX;
+		this.scaleY = scaleY;
 	}
 
 	/** Sets the skeleton X position, which is added to the root bone worldX position. */

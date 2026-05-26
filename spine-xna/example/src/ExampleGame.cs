@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 using System;
@@ -74,7 +73,7 @@ namespace Spine {
 			// Two color tint effect, comment line 80 to disable
 			var spineEffect = Content.Load<Effect>("spine-xna-example-content\\SpineEffect");
 			spineEffect.Parameters["World"].SetValue(Matrix.Identity);
-			spineEffect.Parameters["View"].SetValue(Matrix.CreateLookAt(new Vector3(0.0f, 0.0f, 1.0f), Vector3.Zero, Vector3.Up));			
+			spineEffect.Parameters["View"].SetValue(Matrix.CreateLookAt(new Vector3(0.0f, 0.0f, 1.0f), Vector3.Zero, Vector3.Up));
 
 			skeletonRenderer = new SkeletonRenderer(GraphicsDevice);
 			skeletonRenderer.PremultipliedAlpha = false;
@@ -93,7 +92,7 @@ namespace Spine {
 			if (name == "goblins-pro") atlasName = "goblins-mesh";
 			bool binaryData = false;
 
-			Atlas atlas = new Atlas(assetsFolder + atlasName + ".atlas", new XnaTextureLoader(GraphicsDevice));			
+			Atlas atlas = new Atlas(assetsFolder + atlasName + ".atlas", new XnaTextureLoader(GraphicsDevice));
 
 			float scale = 1;
 			if (name == "spineboy-ess") scale = 0.6f;
@@ -119,6 +118,8 @@ namespace Spine {
 			state = new AnimationState(stateData);
 
 			if (name == "spineboy-ess") {
+				skeleton.SetAttachment("head-bb", "head");
+
 				stateData.SetMix("run", "jump", 0.2f);
 				stateData.SetMix("jump", "run", 0.4f);
 
@@ -138,12 +139,12 @@ namespace Spine {
 				state.AddAnimation(1, "gun-grab", false, 2);
 			}
 			else if (name == "coin-pro") {
-				state.SetAnimation(0, "rotate", true);
+				state.SetAnimation(0, "animation", true);
 			}
 			else if (name == "tank-pro") {
 				skeleton.X += 300;
 				state.SetAnimation(0, "drive", true);
-			}	
+			}
 			else {
 				state.SetAnimation(0, "walk", true);
 			}
@@ -161,7 +162,7 @@ namespace Spine {
 
 		protected override void Update (GameTime gameTime) {
 			// TODO: Add your update logic here
-#if (!WINDOWS_STOREAPP || WINDOWS_PHONE81) && !IOS	
+#if (!WINDOWS_STOREAPP || WINDOWS_PHONE81) && !IOS
 			if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed)
 					this.Exit();
 #endif
@@ -172,13 +173,13 @@ namespace Spine {
 			GraphicsDevice.Clear(Color.Black);
 
 			state.Update(gameTime.ElapsedGameTime.Milliseconds / 1000f);
-			state.Apply(skeleton);			
+			state.Apply(skeleton);
 			skeleton.UpdateWorldTransform();
 			if (skeletonRenderer.Effect is BasicEffect) {
 				((BasicEffect)skeletonRenderer.Effect).Projection = Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, 0, 1, 0);
 			} else {
 				skeletonRenderer.Effect.Parameters["Projection"].SetValue(Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, 0, 1, 0));
-			}			
+			}
 			skeletonRenderer.Begin();
 			skeletonRenderer.Draw(skeleton);
 			skeletonRenderer.End();
@@ -212,19 +213,19 @@ namespace Spine {
 		}
 
 		public void End (TrackEntry entry) {
-#if !WINDOWS_STOREAPP	
+#if !WINDOWS_STOREAPP
 			Console.WriteLine(entry + ": end");
 #endif
 		}
 
 		public void Complete (TrackEntry entry) {
-#if !WINDOWS_STOREAPP	
+#if !WINDOWS_STOREAPP
 			Console.WriteLine(entry + ": complete ");
 #endif
 		}
 
 		public void Event (TrackEntry entry, Event e) {
-#if !WINDOWS_STOREAPP	
+#if !WINDOWS_STOREAPP
 			Console.WriteLine(entry + ": event " + e);
 #endif
 		}

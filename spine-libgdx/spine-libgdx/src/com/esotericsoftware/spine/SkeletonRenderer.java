@@ -1,34 +1,41 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 package com.esotericsoftware.spine;
+
+import com.esotericsoftware.spine.attachments.Attachment;
+import com.esotericsoftware.spine.attachments.ClippingAttachment;
+import com.esotericsoftware.spine.attachments.MeshAttachment;
+import com.esotericsoftware.spine.attachments.RegionAttachment;
+import com.esotericsoftware.spine.attachments.SkeletonAttachment;
+import com.esotericsoftware.spine.utils.SkeletonClipping;
+import com.esotericsoftware.spine.utils.TwoColorPolygonBatch;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
@@ -39,13 +46,6 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.FloatArray;
 import com.badlogic.gdx.utils.NumberUtils;
 import com.badlogic.gdx.utils.ShortArray;
-import com.esotericsoftware.spine.attachments.Attachment;
-import com.esotericsoftware.spine.attachments.ClippingAttachment;
-import com.esotericsoftware.spine.attachments.MeshAttachment;
-import com.esotericsoftware.spine.attachments.RegionAttachment;
-import com.esotericsoftware.spine.attachments.SkeletonAttachment;
-import com.esotericsoftware.spine.utils.SkeletonClipping;
-import com.esotericsoftware.spine.utils.TwoColorPolygonBatch;
 
 public class SkeletonRenderer {
 	static private final short[] quadTriangles = {0, 1, 2, 2, 3, 0};
@@ -61,12 +61,19 @@ public class SkeletonRenderer {
 	private final Color temp5 = new Color();
 	private final Color temp6 = new Color();
 
+	/** Renders the specified skeleton. If the batch is a PolygonSpriteBatch, {@link #draw(PolygonSpriteBatch, Skeleton)} is
+	 * called. If the batch is a TwoColorPolygonBatch, {@link #draw(TwoColorPolygonBatch, Skeleton)} is called. Otherwise the
+	 * skeleton is rendered without two color tinting and any mesh attachments will throw an exception.
+	 * <p>
+	 * This method may change the batch's {@link Batch#setBlendFunctionSeparate(int, int, int, int) blending function}. The
+	 * previous blend function is not restored, since that could result in unnecessary flushes, depending on what is rendered
+	 * next. */
 	public void draw (Batch batch, Skeleton skeleton) {
-		if (batch instanceof PolygonSpriteBatch) {
-			draw((PolygonSpriteBatch)batch, skeleton);
-			return;
-		} else if (batch instanceof TwoColorPolygonBatch) {
+		if (batch instanceof TwoColorPolygonBatch) {
 			draw((TwoColorPolygonBatch)batch, skeleton);
+			return;
+		} else if (batch instanceof PolygonSpriteBatch) {
+			draw((PolygonSpriteBatch)batch, skeleton);
 			return;
 		}
 
@@ -133,6 +140,11 @@ public class SkeletonRenderer {
 		if (vertexEffect != null) vertexEffect.end();
 	}
 
+	/** Renders the specified skeleton, including meshes, but without two color tinting.
+	 * <p>
+	 * This method may change the batch's {@link Batch#setBlendFunctionSeparate(int, int, int, int) blending function}. The
+	 * previous blend function is not restored, since that could result in unnecessary flushes, depending on what is rendered
+	 * next. */
 	@SuppressWarnings("null")
 	public void draw (PolygonSpriteBatch batch, Skeleton skeleton) {
 		Vector2 tempPos = this.temp;
@@ -250,6 +262,11 @@ public class SkeletonRenderer {
 		if (vertexEffect != null) vertexEffect.end();
 	}
 
+	/** Renders the specified skeleton, including meshes and two color tinting.
+	 * <p>
+	 * This method may change the batch's {@link Batch#setBlendFunctionSeparate(int, int, int, int) blending function}. The
+	 * previous blend function is not restored, since that could result in unnecessary flushes, depending on what is rendered
+	 * next. */
 	@SuppressWarnings("null")
 	public void draw (TwoColorPolygonBatch batch, Skeleton skeleton) {
 		Vector2 tempPos = this.temp;
@@ -339,7 +356,7 @@ public class SkeletonRenderer {
 					FloatArray clippedVertices = clipper.getClippedVertices();
 					ShortArray clippedTriangles = clipper.getClippedTriangles();
 					if (vertexEffect != null) applyVertexEffect(clippedVertices.items, clippedVertices.size, 6, light, dark);
-					batch.draw(texture, clippedVertices.items, 0, clippedVertices.size, clippedTriangles.items, 0,
+					batch.drawTwoColor(texture, clippedVertices.items, 0, clippedVertices.size, clippedTriangles.items, 0,
 						clippedTriangles.size);
 				} else {
 					if (vertexEffect != null) {
@@ -368,7 +385,7 @@ public class SkeletonRenderer {
 							vertices[v + 3] = uvs[u + 1];
 						}
 					}
-					batch.draw(texture, vertices, 0, verticesLength, triangles, 0, triangles.length);
+					batch.drawTwoColor(texture, vertices, 0, verticesLength, triangles, 0, triangles.length);
 				}
 			}
 

@@ -1,34 +1,33 @@
 -------------------------------------------------------------------------------
--- Spine Runtimes Software License v2.5
+-- Spine Runtimes License Agreement
+-- Last updated May 1, 2019. Replaces all prior versions.
 --
--- Copyright (c) 2013-2016, Esoteric Software
--- All rights reserved.
+-- Copyright (c) 2013-2019, Esoteric Software LLC
 --
--- You are granted a perpetual, non-exclusive, non-sublicensable, and
--- non-transferable license to use, install, execute, and perform the Spine
--- Runtimes software and derivative works solely for personal or internal
--- use. Without the written permission of Esoteric Software (see Section 2 of
--- the Spine Software License Agreement), you may not (a) modify, translate,
--- adapt, or develop new applications using the Spine Runtimes or otherwise
--- create derivative works or improvements of the Spine Runtimes or (b) remove,
--- delete, alter, or obscure any trademarks or any copyright, trademark, patent,
--- or other intellectual property or proprietary rights notices on or in the
--- Software, including any copy thereof. Redistributions in binary or source
--- form must include this license and terms.
+-- Integration of the Spine Runtimes into software or otherwise creating
+-- derivative works of the Spine Runtimes is permitted under the terms and
+-- conditions of Section 2 of the Spine Editor License Agreement:
+-- http://esotericsoftware.com/spine-editor-license
 --
--- THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
--- IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
--- MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
--- EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
--- SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
--- PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
--- USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
--- IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
--- ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
--- POSSIBILITY OF SUCH DAMAGE.
+-- Otherwise, it is permitted to integrate the Spine Runtimes into software
+-- or otherwise create derivative works of the Spine Runtimes (collectively,
+-- "Products"), provided that each user of the Products must obtain their own
+-- Spine Editor license and redistribution of the Products in any form must
+-- include this license and copyright notice.
+--
+-- THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+-- OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+-- OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+-- NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+-- INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+-- BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+-- INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+-- THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+-- NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+-- EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -------------------------------------------------------------------------------
 
-spine = {}
+local spine = {}
 
 spine.utils = require "spine-lua.utils"
 spine.SkeletonJson = require "spine-lua.SkeletonJson"
@@ -88,11 +87,13 @@ local QUAD_TRIANGLES = { 1, 2, 3, 3, 4, 1 }
 spine.Skeleton.new_super = spine.Skeleton.new
 spine.Skeleton.updateWorldTransform_super = spine.Skeleton.updateWorldTransform
 spine.Skeleton.new = function(skeletonData, group)
-	self = spine.Skeleton.new_super(skeletonData)
+	local self = spine.Skeleton.new_super(skeletonData)
 	self.group = group or display.newGroup()
 	self.drawingGroup = nil
 	self.premultipliedAlpha = false
-	self.batches = 0
+	self.slotData = {}
+	self.drawingGroup = display.newGroup()
+	self.group:insert(self.drawingGroup)
 	self.tempColor = spine.Color.newWith(1, 1, 1, 1)
 	self.tempColor2 = spine.Color.newWith(-1, 1, 1, 1)
 	self.tempVertex = {
@@ -125,22 +126,75 @@ end
 
 local worldVertices = spine.utils.newNumberArray(10000 * 8)
 
+function spine.Skeleton:hideSlot(slot)
+	if not self.slotData[slot] then return end
+	self.slotData[slot].mesh.isVisible = false
+end
+
+function spine.Skeleton:createSlot(slot, params)
+	local mesh = display.newMesh(self.drawingGroup, 0, 0, {
+		mode     = "indexed",
+		vertices = params.vertices,
+		uvs      = params.uvs,
+		indices  = params.indices
+	})
+	
+	mesh.x, mesh.y = mesh.path:getVertexOffset()
+	mesh.blendMode = params.blendMode
+	mesh.fill      = params.texture
+	
+	local color = params.color
+	mesh:setFillColor(color.r, color.g, color.b, color.a)
+	
+	self.slotData[slot] = {
+		mesh        = mesh,
+		indices     = params.indices,
+		texture     = params.texture,
+		uvs     = params.uvs,
+	}
+end
+
+function spine.Skeleton:updateSlot(slot, params)
+	if not self.slotData[slot] then
+		return self:createSlot(slot, params) 
+	end
+	local slotData = self.slotData[slot]
+	local mesh = slotData.mesh
+	if #params.indices ~= #slotData.indices or #params.uvs ~= #slotData.uvs then
+		slotData.mesh:removeSelf()
+		self.slotData[slot] = nil
+		return self:createSlot(slot, params) 
+	end
+
+	mesh.path:update({
+		vertices = params.vertices,
+		uvs      = params.uvs,
+		indices = params.indices
+	})
+	
+	mesh.isVisible = true
+	mesh.x, mesh.y = mesh.path:getVertexOffset()
+	mesh:toFront()
+	
+	local color = params.color
+	mesh:setFillColor(color.r, color.g, color.b, color.a)
+
+	if slotData.texture ~= params.texture then
+		slotData.texture = params.texture
+		mesh.fill = params.texture
+	end
+	if mesh.blendMode ~= params.blendMode then
+		mesh.blendMode = params.blendMode
+	end
+end
+
 function spine.Skeleton:updateWorldTransform()
 	spine.Skeleton.updateWorldTransform_super(self)
 	local premultipliedAlpha = self.premultipliedAlpha
 
-	self.batches = 0
-	
 	if (self.vertexEffect) then self.vertexEffect:beginEffect(self) end
 
-	-- Remove old drawing group, we will start anew
-	if self.drawingGroup then self.drawingGroup:removeSelf() end
-	local drawingGroup = display.newGroup()
-	self.drawingGroup = drawingGroup
-	self.group:insert(drawingGroup)
-
 	local drawOrder = self.drawOrder
-	local currentGroup = nil
 	local groupVertices = {}
 	local groupIndices = {}
 	local groupUvs = {}
@@ -151,10 +205,10 @@ function spine.Skeleton:updateWorldTransform()
 	local lastTexture = nil
 	local blendMode = nil
 	local lastBlendMode = nil
-	local renderable = {
-		vertices = nil,
-		uvs = nil
-	}
+
+	for k, v in pairs(self.slotData) do
+		self:hideSlot(k)
+	end
 	
 	for i,slot in ipairs(drawOrder) do
 		local attachment = slot.attachment
@@ -201,7 +255,15 @@ function spine.Skeleton:updateWorldTransform()
 				if not lastBlendMode then lastBlendMode = blendMode end
 
 				if (texture ~= lastTexture or not colorEquals(color, lastColor) or blendMode ~= lastBlendMode) then
-					self:flush(groupVertices, groupUvs, groupIndices, lastTexture, lastColor, lastBlendMode, drawingGroup)
+					local lastSlot = drawOrder[i-1]
+					self:updateSlot(lastSlot, {
+						texture   = lastTexture,
+						color     = lastColor,
+						blendMode = lastBlendMode,
+						vertices  = groupVertices,
+						uvs       = groupUvs,
+						indices   = groupIndices
+					})
 					lastTexture = texture
 					lastColor:setFrom(color)
 					lastBlendMode = blendMode
@@ -226,27 +288,22 @@ function spine.Skeleton:updateWorldTransform()
 	end
 
 	if #groupVertices > 0 then
-		self:flush(groupVertices, groupUvs, groupIndices, texture, color, blendMode, drawingGroup)
-	end
+		local slot = drawOrder[#drawOrder]
+
+		self:updateSlot(slot, {
+			texture   = texture,
+			color     = color,
+			blendMode = blendMode,
+			vertices  = groupVertices,
+			uvs       = groupUvs,
+			indices   = groupIndices,
+		})
+	end	
 	
 	self.clipper:clipEnd2()
 	if (self.vertexEffect) then self.vertexEffect:endEffect() end
 end
 
-function spine.Skeleton:flush(groupVertices, groupUvs, groupIndices, texture, color, blendMode, drawingGroup)
-	local mesh = display.newMesh(drawingGroup, 0, 0, {
-			mode = "indexed",
-			vertices = groupVertices,
-			uvs = groupUvs,
-			indices = groupIndices
-	})
-	mesh.fill = texture
-	mesh:setFillColor(color.r, color.g, color.b)
-	mesh.alpha = color.a
-	mesh.blendMode = blendMode
-	mesh:translate(mesh.path:getVertexOffset())
-	self.batches = self.batches + 1
-end
 
 function spine.Skeleton:batch(vertices, uvs, numVertices, indices, groupVertices, groupUvs, groupIndices)
 	local numIndices = #indices

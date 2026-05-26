@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 package spine {
@@ -33,8 +32,10 @@ package spine {
 		internal var _data : IkConstraintData;
 		public var bones : Vector.<Bone>;
 		public var target : Bone;
-		public var mix : Number;
 		public var bendDirection : int;
+		public var compress: Boolean;
+		public var stretch: Boolean;
+		public var mix : Number;
 
 		public function IkConstraint(data : IkConstraintData, skeleton : Skeleton) {
 			if (data == null) throw new ArgumentError("data cannot be null.");
@@ -42,6 +43,8 @@ package spine {
 			_data = data;
 			mix = data.mix;
 			bendDirection = data.bendDirection;
+			compress = data.compress;
+			stretch = data.stretch;
 
 			bones = new Vector.<Bone>();
 			for each (var boneData : BoneData in data.bones)
@@ -56,10 +59,10 @@ package spine {
 		public function update() : void {
 			switch (bones.length) {
 				case 1:
-					apply1(bones[0], target.worldX, target.worldY, mix);
+					apply1(bones[0], target.worldX, target.worldY, compress, stretch, _data.uniform, mix);
 					break;
 				case 2:
-					apply2(bones[0], bones[1], target.worldX, target.worldY, bendDirection, mix);
+					apply2(bones[0], bones[1], target.worldX, target.worldY, bendDirection, stretch, mix);
 					break;
 			}
 		}
@@ -78,7 +81,7 @@ package spine {
 
 		/** Adjusts the bone rotation so the tip is as close to the target position as possible. The target is specified in the world
 		 * coordinate system. */
-		static public function apply1(bone : Bone, targetX : Number, targetY : Number, alpha : Number) : void {
+		static public function apply1(bone : Bone, targetX : Number, targetY : Number, compress: Boolean, stretch : Boolean, uniform: Boolean, alpha : Number) : void {
 			if (!bone.appliedValid) bone.updateAppliedTransform();
 			var p : Bone = bone.parent;
 			var id : Number = 1 / (p.a * p.d - p.b * p.c);
@@ -89,20 +92,30 @@ package spine {
 			if (rotationIK > 180)
 				rotationIK -= 360;
 			else if (rotationIK < -180) rotationIK += 360;
-			bone.updateWorldTransformWith(bone.ax, bone.ay, bone.arotation + rotationIK * alpha, bone.ascaleX, bone.ascaleY, bone.ashearX, bone.ashearY);
+			var sx : Number = bone.ascaleX;
+			var sy : Number = bone.ascaleY;
+			if (stretch) {
+				var b : Number = bone.data.length * sx, dd : Number = Math.sqrt(tx * tx + ty * ty);
+				if ((compress && dd < b) || (stretch && dd > b) && b > 0.0001) {
+					var s : Number = (dd / b - 1) * alpha + 1;
+					sx *= s;
+					if (uniform) sy *= s;
+				}				
+			}
+			bone.updateWorldTransformWith(bone.ax, bone.ay, bone.arotation + rotationIK * alpha, sx, sy, bone.ashearX, bone.ashearY);
 		}
 
 		/** Adjusts the parent and child bone rotations so the tip of the child is as close to the target position as possible. The
 		 * target is specified in the world coordinate system.
 		 * @param child Any descendant bone of the parent. */
-		static public function apply2(parent : Bone, child : Bone, targetX : Number, targetY : Number, bendDir : int, alpha : Number) : void {
+		static public function apply2(parent : Bone, child : Bone, targetX : Number, targetY : Number, bendDir : int, stretch : Boolean, alpha : Number) : void {
 			if (alpha == 0) {
 				child.updateWorldTransform();
 				return;
 			}
 			if (!parent.appliedValid) parent.updateAppliedTransform();
 			if (!child.appliedValid) child.updateAppliedTransform();
-			var px : Number = parent.ax, py : Number = parent.ay, psx : Number = parent.ascaleX, psy : Number = parent.ascaleY, csx : Number = child.ascaleX;
+			var px : Number = parent.ax, py : Number = parent.ay, psx : Number = parent.ascaleX, sx : Number = psx, psy : Number = parent.ascaleY, csx : Number = child.ascaleX;
 			var os1 : int, os2 : int, s2 : int;
 			if (psx < 0) {
 				psx = -psx;
@@ -138,7 +151,7 @@ package spine {
 			c = pp.c;
 			d = pp.d;
 			var id : Number = 1 / (a * d - b * c), x : Number = targetX - pp.worldX, y : Number = targetY - pp.worldY;
-			var tx : Number = (x * d - y * b) * id - px, ty : Number = (y * a - x * c) * id - py;
+			var tx : Number = (x * d - y * b) * id - px, ty : Number = (y * a - x * c) * id - py, dd : Number = tx * tx + ty * ty;
 			x = cwx - pp.worldX;
 			y = cwy - pp.worldY;
 			var dx : Number = (x * d - y * b) * id - px, dy : Number = (y * a - x * c) * id - py;
@@ -146,10 +159,13 @@ package spine {
 			outer:
 			if (u) {
 				l2 *= psx;
-				var cos : Number = (tx * tx + ty * ty - l1 * l1 - l2 * l2) / (2 * l1 * l2);
+				var cos : Number = (dd - l1 * l1 - l2 * l2) / (2 * l1 * l2);
 				if (cos < -1)
 					cos = -1;
-				else if (cos > 1) cos = 1;
+				else if (cos > 1) {
+					cos = 1;
+					if (stretch && l1 + l2 > 0.0001) sx *= (Math.sqrt(dd) / (l1 + l2) - 1) * alpha + 1;
+				}
 				a2 = Math.acos(cos) * bendDir;
 				a = l1 + l2 * cos;
 				b = l2 * Math.sin(a2);
@@ -157,7 +173,7 @@ package spine {
 			} else {
 				a = psx * l2;
 				b = psy * l2;
-				var aa : Number = a * a, bb : Number = b * b, dd : Number = tx * tx + ty * ty, ta : Number = Math.atan2(ty, tx);
+				var aa : Number = a * a, bb : Number = b * b, ta : Number = Math.atan2(ty, tx);
 				c = bb * l1 * l1 + aa * dd - aa * bb;
 				var c1 : Number = -2 * bb * l1, c2 : Number = bb - aa;
 				d = c1 * c1 - 4 * c2 * c;
@@ -209,7 +225,7 @@ package spine {
 			if (a1 > 180)
 				a1 -= 360;
 			else if (a1 < -180) a1 += 360;
-			parent.updateWorldTransformWith(px, py, rotation + a1 * alpha, parent.ascaleX, parent.ascaleY, 0, 0);
+			parent.updateWorldTransformWith(px, py, rotation + a1 * alpha, sx, parent.ascaleY, 0, 0);
 			rotation = child.arotation;
 			a2 = ((a2 + os) * MathUtils.radDeg - child.ashearX) * s2 + os2 - rotation;
 			if (a2 > 180)

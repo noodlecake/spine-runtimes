@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 module spine {
@@ -45,7 +44,7 @@ module spine {
 			this.clipAttachment = clip;
 
 			let n = clip.worldVerticesLength;
-			let vertices = spine.Utils.setArraySize(this.clippingPolygon, n);
+			let vertices = Utils.setArraySize(this.clippingPolygon, n);
 			clip.computeWorldVertices(slot, 0, n, vertices, 0, 2);
 			let clippingPolygon = this.clippingPolygon;
 			SkeletonClipping.makeClockwise(clippingPolygon);
@@ -113,7 +112,7 @@ module spine {
 
 						let clipOutputCount = clipOutputLength >> 1;
 						let clipOutputItems = this.clipOutput;
-						let clippedVerticesItems = spine.Utils.setArraySize(clippedVertices, s + clipOutputCount * vertexSize);
+						let clippedVerticesItems = Utils.setArraySize(clippedVertices, s + clipOutputCount * vertexSize);
 						for (let ii = 0; ii < clipOutputLength; ii += 2) {
 							let x = clipOutputItems[ii], y = clipOutputItems[ii + 1];
 							clippedVerticesItems[s] = x;
@@ -138,7 +137,7 @@ module spine {
 						}
 
 						s = clippedTriangles.length;
-						let clippedTrianglesItems = spine.Utils.setArraySize(clippedTriangles, s + 3 * (clipOutputCount - 2));
+						let clippedTrianglesItems = Utils.setArraySize(clippedTriangles, s + 3 * (clipOutputCount - 2));
 						clipOutputCount--;
 						for (let ii = 1; ii < clipOutputCount; ii++) {
 							clippedTrianglesItems[s] = index;
@@ -149,7 +148,7 @@ module spine {
 						index += clipOutputCount + 1;
 
 					} else {
-						let clippedVerticesItems = spine.Utils.setArraySize(clippedVertices, s + 3 * vertexSize);
+						let clippedVerticesItems = Utils.setArraySize(clippedVertices, s + 3 * vertexSize);
 						clippedVerticesItems[s] = x1;
 						clippedVerticesItems[s + 1] = y1;
 						clippedVerticesItems[s + 2] = light.r;
@@ -213,7 +212,7 @@ module spine {
 						}
 
 						s = clippedTriangles.length;
-						let clippedTrianglesItems = spine.Utils.setArraySize(clippedTriangles, s + 3);
+						let clippedTrianglesItems = Utils.setArraySize(clippedTriangles, s + 3);
 						clippedTrianglesItems[s] = index;
 						clippedTrianglesItems[s + 1] = (index + 1);
 						clippedTrianglesItems[s + 2] = (index + 2);
@@ -270,14 +269,26 @@ module spine {
 						}
 						// v1 inside, v2 outside
 						let c0 = inputY2 - inputY, c2 = inputX2 - inputX;
-						let ua = (c2 * (edgeY - inputY) - c0 * (edgeX - inputX)) / (c0 * (edgeX2 - edgeX) - c2 * (edgeY2 - edgeY));
-						output.push(edgeX + (edgeX2 - edgeX) * ua);
-						output.push(edgeY + (edgeY2 - edgeY) * ua);
+						let s = c0 * (edgeX2 - edgeX) - c2 * (edgeY2 - edgeY);
+						if (Math.abs(s) > 0.000001) {
+							let ua = (c2 * (edgeY - inputY) - c0 * (edgeX - inputX)) / s;
+							output.push(edgeX + (edgeX2 - edgeX) * ua);
+							output.push(edgeY + (edgeY2 - edgeY) * ua);
+						} else {
+							output.push(edgeX);
+							output.push(edgeY);
+						}
 					} else if (side2) { // v1 outside, v2 inside
 						let c0 = inputY2 - inputY, c2 = inputX2 - inputX;
-						let ua = (c2 * (edgeY - inputY) - c0 * (edgeX - inputX)) / (c0 * (edgeX2 - edgeX) - c2 * (edgeY2 - edgeY));
-						output.push(edgeX + (edgeX2 - edgeX) * ua);
-						output.push(edgeY + (edgeY2 - edgeY) * ua);
+						let s = c0 * (edgeX2 - edgeX) - c2 * (edgeY2 - edgeY);
+						if (Math.abs(s) > 0.000001) {
+							let ua = (c2 * (edgeY - inputY) - c0 * (edgeX - inputX)) / s;
+							output.push(edgeX + (edgeX2 - edgeX) * ua);
+							output.push(edgeY + (edgeY2 - edgeY) * ua);
+						} else {
+							output.push(edgeX);
+							output.push(edgeY);
+						}
 						output.push(inputX2);
 						output.push(inputY2);
 					}

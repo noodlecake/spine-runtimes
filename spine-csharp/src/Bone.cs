@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 using System;
@@ -52,10 +51,6 @@ namespace Spine {
 
 		internal float a, b, worldX;
 		internal float c, d, worldY;
-
-//		internal float worldSignX, worldSignY;
-//		public float WorldSignX { get { return worldSignX; } }
-//		public float WorldSignY { get { return worldSignY; } }
 
 		internal bool sorted;
 
@@ -152,27 +147,13 @@ namespace Spine {
 
 			Bone parent = this.parent;
 			if (parent == null) { // Root bone.
-				float rotationY = rotation + 90 + shearY;
-				float la = MathUtils.CosDeg(rotation + shearX) * scaleX;
-				float lb = MathUtils.CosDeg(rotationY) * scaleY;
-				float lc = MathUtils.SinDeg(rotation + shearX) * scaleX;
-				float ld = MathUtils.SinDeg(rotationY) * scaleY;
-				if (skeleton.flipX) {
-					x = -x;
-					la = -la;
-					lb = -lb;
-				}
-				if (skeleton.flipY != yDown) {
-					y = -y;
-					lc = -lc;
-					ld = -ld;
-				}
-				a = la;
-				b = lb;
-				c = lc;
-				d = ld;
-				worldX = x + skeleton.x;
-				worldY = y + skeleton.y;
+				float rotationY = rotation + 90 + shearY, sx = skeleton.scaleX, sy = skeleton.scaleY;
+				a = MathUtils.CosDeg(rotation + shearX) * scaleX * sx;
+				b = MathUtils.CosDeg(rotationY) * scaleY * sx;
+				c = MathUtils.SinDeg(rotation + shearX) * scaleX * sy;
+				d = MathUtils.SinDeg(rotationY) * scaleY * sy;
+				worldX = x * sx + skeleton.x;
+				worldY = y * sy + skeleton.y;
 				return;
 			}
 
@@ -228,13 +209,16 @@ namespace Spine {
 			case TransformMode.NoScale:
 			case TransformMode.NoScaleOrReflection: {
 					float cos = MathUtils.CosDeg(rotation), sin = MathUtils.SinDeg(rotation);
-					float za = pa * cos + pb * sin;
-					float zc = pc * cos + pd * sin;
+					float za = (pa * cos + pb * sin) / skeleton.scaleX;
+					float zc = (pc * cos + pd * sin) / skeleton.scaleY;
 					float s = (float)Math.Sqrt(za * za + zc * zc);
 					if (s > 0.00001f) s = 1 / s;
 					za *= s;
 					zc *= s;
 					s = (float)Math.Sqrt(za * za + zc * zc);
+					if (data.transformMode == TransformMode.NoScale
+						&& (pa * pd - pb * pc < 0) != (skeleton.scaleX < 0 != skeleton.scaleY < 0)) s = -s;
+
 					float r = MathUtils.PI / 2 + MathUtils.Atan2(zc, za);
 					float zb = MathUtils.Cos(r) * s;
 					float zd = MathUtils.Sin(r) * s;
@@ -242,26 +226,18 @@ namespace Spine {
 					float lb = MathUtils.CosDeg(90 + shearY) * scaleY;
 					float lc = MathUtils.SinDeg(shearX) * scaleX;
 					float ld = MathUtils.SinDeg(90 + shearY) * scaleY;
-					if (data.transformMode != TransformMode.NoScaleOrReflection? pa * pd - pb* pc< 0 : skeleton.flipX != skeleton.flipY) {
-						zb = -zb;
-						zd = -zd;
-					}
 					a = za * la + zb * lc;
 					b = za * lb + zb * ld;
 					c = zc * la + zd * lc;
-					d = zc * lb + zd * ld;					
-					return;
+					d = zc * lb + zd * ld;
+					break;
 				}
 			}
 
-			if (skeleton.flipX) {
-				a = -a;
-				b = -b;
-			}
-			if (skeleton.flipY != Bone.yDown) {
-				c = -c;
-				d = -d;
-			}
+			a *= skeleton.scaleX;
+			b *= skeleton.scaleX;
+			c *= skeleton.scaleY;
+			d *= skeleton.scaleY;
 		}
 
 		public void SetToSetupPose () {
@@ -355,10 +331,11 @@ namespace Spine {
 
 		public float WorldToLocalRotation (float worldRotation) {
 			float sin = MathUtils.SinDeg(worldRotation), cos = MathUtils.CosDeg(worldRotation);
-			return MathUtils.Atan2(a * sin - c * cos, d * cos - b * sin) * MathUtils.RadDeg;
+			return MathUtils.Atan2(a * sin - c * cos, d * cos - b * sin) * MathUtils.RadDeg + rotation - shearX;
 		}
 
 		public float LocalToWorldRotation (float localRotation) {
+			localRotation -= rotation - shearX;
 			float sin = MathUtils.SinDeg(localRotation), cos = MathUtils.CosDeg(localRotation);
 			return MathUtils.Atan2(cos * c + sin * d, cos * a + sin * b) * MathUtils.RadDeg;
 		}

@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 module spine {
@@ -33,8 +32,10 @@ module spine {
 		data: IkConstraintData;
 		bones: Array<Bone>;
 		target: Bone;
-		mix = 1;
 		bendDirection = 0;
+		compress = false;
+		stretch = false;
+		mix = 1;
 
 		constructor (data: IkConstraintData, skeleton: Skeleton) {
 			if (data == null) throw new Error("data cannot be null.");
@@ -42,6 +43,8 @@ module spine {
 			this.data = data;
 			this.mix = data.mix;
 			this.bendDirection = data.bendDirection;
+			this.compress = data.compress;
+			this.stretch = data.stretch;
 
 			this.bones = new Array<Bone>();
 			for (let i = 0; i < data.bones.length; i++)
@@ -62,17 +65,17 @@ module spine {
 			let bones = this.bones;
 			switch (bones.length) {
 			case 1:
-				this.apply1(bones[0], target.worldX, target.worldY, this.mix);
+				this.apply1(bones[0], target.worldX, target.worldY, this.compress, this.stretch, this.data.uniform, this.mix);
 				break;
 			case 2:
-				this.apply2(bones[0], bones[1], target.worldX, target.worldY, this.bendDirection, this.mix);
+				this.apply2(bones[0], bones[1], target.worldX, target.worldY, this.bendDirection, this.stretch, this.mix);
 				break;
 			}
 		}
 
 		/** Adjusts the bone rotation so the tip is as close to the target position as possible. The target is specified in the world
 		 * coordinate system. */
-		apply1 (bone: Bone, targetX: number, targetY: number, alpha: number) {
+		apply1 (bone: Bone, targetX: number, targetY: number, compress: boolean, stretch: boolean, uniform: boolean, alpha: number) {
 			if (!bone.appliedValid) bone.updateAppliedTransform();
 			let p = bone.parent;
 			let id = 1 / (p.a * p.d - p.b * p.c);
@@ -83,21 +86,30 @@ module spine {
 			if (rotationIK > 180)
 				rotationIK -= 360;
 			else if (rotationIK < -180) rotationIK += 360;
-			bone.updateWorldTransformWith(bone.ax, bone.ay, bone.arotation + rotationIK * alpha, bone.ascaleX, bone.ascaleY, bone.ashearX,
+			let sx = bone.ascaleX, sy = bone.ascaleY;
+			if (compress || stretch) {
+				let b = bone.data.length * sx, dd = Math.sqrt(tx * tx + ty * ty);
+				if ((compress && dd < b) || (stretch && dd > b) && b > 0.0001) {
+					let s = (dd / b - 1) * alpha + 1;
+					sx *= s;
+					if (uniform) sy *= s;
+				}
+			}
+			bone.updateWorldTransformWith(bone.ax, bone.ay, bone.arotation + rotationIK * alpha, sx, sy, bone.ashearX,
 				bone.ashearY);
 		}
 
 		/** Adjusts the parent and child bone rotations so the tip of the child is as close to the target position as possible. The
 		 * target is specified in the world coordinate system.
 		 * @param child A direct descendant of the parent bone. */
-		apply2 (parent: Bone, child: Bone, targetX: number, targetY: number, bendDir: number, alpha: number) {
+		apply2 (parent: Bone, child: Bone, targetX: number, targetY: number, bendDir: number, stretch: boolean, alpha: number) {
 			if (alpha == 0) {
 				child.updateWorldTransform();
 				return;
 			}
 			if (!parent.appliedValid) parent.updateAppliedTransform();
 			if (!child.appliedValid) child.updateAppliedTransform();
-			let px = parent.ax, py = parent.ay, psx = parent.ascaleX, psy = parent.ascaleY, csx = child.ascaleX;
+			let px = parent.ax, py = parent.ay, psx = parent.ascaleX, sx = psx, psy = parent.ascaleY, csx = child.ascaleX;
 			let os1 = 0, os2 = 0, s2 = 0;
 			if (psx < 0) {
 				psx = -psx;
@@ -133,7 +145,7 @@ module spine {
 			c = pp.c;
 			d = pp.d;
 			let id = 1 / (a * d - b * c), x = targetX - pp.worldX, y = targetY - pp.worldY;
-			let tx = (x * d - y * b) * id - px, ty = (y * a - x * c) * id - py;
+			let tx = (x * d - y * b) * id - px, ty = (y * a - x * c) * id - py, dd = tx * tx + ty * ty;
 			x = cwx - pp.worldX;
 			y = cwy - pp.worldY;
 			let dx = (x * d - y * b) * id - px, dy = (y * a - x * c) * id - py;
@@ -141,10 +153,13 @@ module spine {
 			outer:
 			if (u) {
 				l2 *= psx;
-				let cos = (tx * tx + ty * ty - l1 * l1 - l2 * l2) / (2 * l1 * l2);
+				let cos = (dd - l1 * l1 - l2 * l2) / (2 * l1 * l2);
 				if (cos < -1)
 					cos = -1;
-				else if (cos > 1) cos = 1;
+				else if (cos > 1) {
+					cos = 1;
+					if (stretch && l1 + l2 > 0.0001) sx *= (Math.sqrt(dd) / (l1 + l2) - 1) * alpha + 1;
+				}
 				a2 = Math.acos(cos) * bendDir;
 				a = l1 + l2 * cos;
 				b = l2 * Math.sin(a2);
@@ -152,7 +167,7 @@ module spine {
 			} else {
 				a = psx * l2;
 				b = psy * l2;
-				let aa = a * a, bb = b * b, dd = tx * tx + ty * ty, ta = Math.atan2(ty, tx);
+				let aa = a * a, bb = b * b, ta = Math.atan2(ty, tx);
 				c = bb * l1 * l1 + aa * dd - aa * bb;
 				let c1 = -2 * bb * l1, c2 = bb - aa;
 				d = c1 * c1 - 4 * c2 * c;
@@ -169,7 +184,7 @@ module spine {
 						break outer;
 					}
 				}
-				let minAngle = spine.MathUtils.PI, minX = l1 - a, minDist = minX * minX, minY = 0;
+				let minAngle = MathUtils.PI, minX = l1 - a, minDist = minX * minX, minY = 0;
 				let maxAngle = 0, maxX = l1 + a, maxDist = maxX * maxX, maxY = 0;
 				c = -a * l1 / (aa - bb);
 				if (c >= -1 && c <= 1) {
@@ -204,7 +219,7 @@ module spine {
 			if (a1 > 180)
 				a1 -= 360;
 			else if (a1 < -180) a1 += 360;
-			parent.updateWorldTransformWith(px, py, rotation + a1 * alpha, parent.ascaleX, parent.ascaleY, 0, 0);
+			parent.updateWorldTransformWith(px, py, rotation + a1 * alpha, sx, parent.ascaleY, 0, 0);
 			rotation = child.arotation;
 			a2 = ((a2 + os) * MathUtils.radDeg - child.ashearX) * s2 + os2 - rotation;
 			if (a2 > 180)

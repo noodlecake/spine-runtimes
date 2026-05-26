@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 package spine {
@@ -158,6 +157,9 @@ package spine {
 				if (!ikConstraintData.target) throw new Error("Target bone not found: " + constraintMap["target"]);
 
 				ikConstraintData.bendDirection = (!constraintMap.hasOwnProperty("bendPositive") || constraintMap["bendPositive"]) ? 1 : -1;
+				ikConstraintData.compress = (constraintMap.hasOwnProperty("compress") && constraintMap["compress"]);
+				ikConstraintData.stretch = (constraintMap.hasOwnProperty("stretch") && constraintMap["stretch"]);
+				ikConstraintData.uniform = (constraintMap.hasOwnProperty("uniform") && constraintMap["uniform"]);
 				ikConstraintData.mix = constraintMap.hasOwnProperty("mix") ? constraintMap["mix"] : 1;
 
 				skeletonData.ikConstraints.push(ikConstraintData);
@@ -263,6 +265,11 @@ package spine {
 					eventData.intValue = eventMap["int"] || 0;
 					eventData.floatValue = eventMap["float"] || 0;
 					eventData.stringValue = eventMap["string"] || "";
+					eventData.audioPath = eventMap["audio"] || null;
+					if (eventData.audioPath != null) {
+						eventData.volume = eventMap["volume"] || 1;
+						eventData.balance = eventMap["balance"] || 0;
+					}
 					skeletonData.events.push(eventData);
 				}
 			}
@@ -531,7 +538,9 @@ package spine {
 				for each (valueMap in values) {
 					var mix : Number = valueMap.hasOwnProperty("mix") ? valueMap["mix"] : 1;
 					var bendDirection : int = (!valueMap.hasOwnProperty("bendPositive") || valueMap["bendPositive"]) ? 1 : -1;
-					ikTimeline.setFrame(frameIndex, valueMap["time"], mix, bendDirection);
+					var compress : Boolean = (valueMap.hasOwnProperty("compress") && valueMap["compress"]);
+					var stretch : Boolean = (valueMap.hasOwnProperty("stretch") && valueMap["stretch"]);
+					ikTimeline.setFrame(frameIndex, valueMap["time"], mix, bendDirection, compress, stretch);
 					readCurve(valueMap, ikTimeline, frameIndex);
 					frameIndex++;
 				}
@@ -709,6 +718,10 @@ package spine {
 					event.intValue = eventMap.hasOwnProperty("int") ? eventMap["int"] : eventData.intValue;
 					event.floatValue = eventMap.hasOwnProperty("float") ? eventMap["float"] : eventData.floatValue;
 					event.stringValue = eventMap.hasOwnProperty("string") ? eventMap["string"] : eventData.stringValue;
+					if (eventData.audioPath != null) {
+						event.volume = eventMap.hasOwnProperty("volume") ? eventMap["volume"] : 1;
+						event.balance = eventMap.hasOwnProperty("balance") ? eventMap["balance"] : 0;
+					}
 					eventTimeline.setFrame(frameIndex++, event);
 				}
 				timelines[timelines.length] = eventTimeline;

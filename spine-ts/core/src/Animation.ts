@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 module spine {
@@ -42,7 +41,7 @@ module spine {
 			this.duration = duration;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, loop: boolean, events: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, loop: boolean, events: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			if (skeleton == null) throw new Error("skeleton cannot be null.");
 
 			if (loop && this.duration != 0) {
@@ -52,7 +51,7 @@ module spine {
 
 			let timelines = this.timelines;
 			for (let i = 0, n = timelines.length; i < n; i++)
-				timelines[i].apply(skeleton, lastTime, time, events, alpha, pose, direction);
+				timelines[i].apply(skeleton, lastTime, time, events, alpha, blend, direction);
 		}
 
 		static binarySearch (values: ArrayLike<number>, target: number, step: number = 1) {
@@ -78,14 +77,15 @@ module spine {
 	}
 
 	export interface Timeline {
-		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection): void;
+		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection): void;
 		getPropertyId (): number;
 	}
 
-	export enum MixPose {
+	export enum MixBlend {
 		setup,
-		current,
-		currentLayered
+		first,
+		replace,
+		add
 	}
 
 	export enum MixDirection {
@@ -188,7 +188,7 @@ module spine {
 			return y + (1 - y) * (percent - x) / (1 - x); // Last point is 1,1.
 		}
 
-		abstract apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection): void;
+		abstract apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection): void;
 	}
 
 	export class RotateTimeline extends CurveTimeline {
@@ -215,29 +215,33 @@ module spine {
 			this.frames[frameIndex + RotateTimeline.ROTATION] = degrees;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let frames = this.frames;
 
 			let bone = skeleton.bones[this.boneIndex];
 			if (time < frames[0]) {
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					bone.rotation = bone.data.rotation;
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					let r = bone.data.rotation - bone.rotation;
-					r -= (16384 - ((16384.499999999996 - r / 360) | 0)) * 360;
-					bone.rotation += r * alpha;
+					bone.rotation += (r - (16384 - ((16384.499999999996 - r / 360) | 0)) * 360) * alpha;
 				}
 				return;
 			}
 
 			if (time >= frames[frames.length - RotateTimeline.ENTRIES]) { // Time is after last frame.
-				if (pose == MixPose.setup)
-					bone.rotation = bone.data.rotation + frames[frames.length + RotateTimeline.PREV_ROTATION] * alpha;
-				else {
-					let r = bone.data.rotation + frames[frames.length + RotateTimeline.PREV_ROTATION] - bone.rotation;
+				let r = frames[frames.length + RotateTimeline.PREV_ROTATION];
+				switch (blend) {
+				case MixBlend.setup:
+					bone.rotation = bone.data.rotation + r * alpha;
+					break;
+				case MixBlend.first:
+				case MixBlend.replace:
+					r += bone.data.rotation - bone.rotation;
 					r -= (16384 - ((16384.499999999996 - r / 360) | 0)) * 360; // Wrap within -180 and 180.
+				case MixBlend.add:
 					bone.rotation += r * alpha;
 				}
 				return;
@@ -251,15 +255,16 @@ module spine {
 				1 - (time - frameTime) / (frames[frame + RotateTimeline.PREV_TIME] - frameTime));
 
 			let r = frames[frame + RotateTimeline.ROTATION] - prevRotation;
-			r -= (16384 - ((16384.499999999996 - r / 360) | 0)) * 360;
-			r = prevRotation + r * percent;
-			if (pose == MixPose.setup) {
-				r -= (16384 - ((16384.499999999996 - r / 360) | 0)) * 360;
-				bone.rotation = bone.data.rotation + r * alpha;
-			} else {
-				r = bone.data.rotation + r - bone.rotation;
-				r -= (16384 - ((16384.499999999996 - r / 360) |0)) * 360;
-				bone.rotation += r * alpha;
+			r = prevRotation + (r - (16384 - ((16384.499999999996 - r / 360) | 0)) * 360) * percent;
+			switch (blend) {
+			case MixBlend.setup:
+				bone.rotation = bone.data.rotation + (r - (16384 - ((16384.499999999996 - r / 360) | 0)) * 360) * alpha;
+				break;
+			case MixBlend.first:
+			case MixBlend.replace:
+				r += bone.data.rotation - bone.rotation;
+			case MixBlend.add:
+				bone.rotation += (r - (16384 - ((16384.499999999996 - r / 360) | 0)) * 360) * alpha;
 			}
 		}
 	}
@@ -289,17 +294,17 @@ module spine {
 			this.frames[frameIndex + TranslateTimeline.Y] = y;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let frames = this.frames;
 
 			let bone = skeleton.bones[this.boneIndex];
 			if (time < frames[0]) {
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					bone.x = bone.data.x;
 					bone.y = bone.data.y;
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					bone.x += (bone.data.x - bone.x) * alpha;
 					bone.y += (bone.data.y - bone.y) * alpha;
 				}
@@ -322,12 +327,19 @@ module spine {
 				x += (frames[frame + TranslateTimeline.X] - x) * percent;
 				y += (frames[frame + TranslateTimeline.Y] - y) * percent;
 			}
-			if (pose == MixPose.setup) {
+			switch (blend) {
+			case MixBlend.setup:
 				bone.x = bone.data.x + x * alpha;
 				bone.y = bone.data.y + y * alpha;
-			} else {
+				break;
+			case MixBlend.first:
+			case MixBlend.replace:
 				bone.x += (bone.data.x + x - bone.x) * alpha;
 				bone.y += (bone.data.y + y - bone.y) * alpha;
+				break;
+			case MixBlend.add:
+				bone.x += x * alpha;
+				bone.y += y * alpha;
 			}
 		}
 	}
@@ -341,17 +353,17 @@ module spine {
 			return (TimelineType.scale << 24) + this.boneIndex;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let frames = this.frames;
 
 			let bone = skeleton.bones[this.boneIndex];
 			if (time < frames[0]) {
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					bone.scaleX = bone.data.scaleX;
 					bone.scaleY = bone.data.scaleY;
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					bone.scaleX += (bone.data.scaleX - bone.scaleX) * alpha;
 					bone.scaleY += (bone.data.scaleY - bone.scaleY) * alpha;
 				}
@@ -375,27 +387,58 @@ module spine {
 				y = (y + (frames[frame + ScaleTimeline.Y] - y) * percent) * bone.data.scaleY;
 			}
 			if (alpha == 1) {
-				bone.scaleX = x;
-				bone.scaleY = y;
+				if (blend == MixBlend.add) {
+					bone.scaleX += x - bone.data.scaleX;
+					bone.scaleY += y - bone.data.scaleY;
+				} else {
+					bone.scaleX = x;
+					bone.scaleY = y;
+				}
 			} else {
 				let bx = 0, by = 0;
-				if (pose == MixPose.setup) {
-					bx = bone.data.scaleX;
-					by = bone.data.scaleY;
-				} else {
-					bx = bone.scaleX;
-					by = bone.scaleY;
-				}
-				// Mixing out uses sign of setup or current pose, else use sign of key.
 				if (direction == MixDirection.out) {
-					x = Math.abs(x) * MathUtils.signum(bx);
-					y = Math.abs(y) * MathUtils.signum(by);
+					switch (blend) {
+					case MixBlend.setup:
+						bx = bone.data.scaleX;
+						by = bone.data.scaleY;
+						bone.scaleX = bx + (Math.abs(x) * MathUtils.signum(bx) - bx) * alpha;
+						bone.scaleY = by + (Math.abs(y) * MathUtils.signum(by) - by) * alpha;
+						break;
+					case MixBlend.first:
+					case MixBlend.replace:
+						bx = bone.scaleX;
+						by = bone.scaleY;
+						bone.scaleX = bx + (Math.abs(x) * MathUtils.signum(bx) - bx) * alpha;
+						bone.scaleY = by + (Math.abs(y) * MathUtils.signum(by) - by) * alpha;
+						break;
+					case MixBlend.add:
+						bx = bone.scaleX;
+						by = bone.scaleY;
+						bone.scaleX = bx + (Math.abs(x) * MathUtils.signum(bx) - bone.data.scaleX) * alpha;
+						bone.scaleY = by + (Math.abs(y) * MathUtils.signum(by) - bone.data.scaleY) * alpha;
+					}
 				} else {
-					bx = Math.abs(bx) * MathUtils.signum(x);
-					by = Math.abs(by) * MathUtils.signum(y);
+					switch (blend) {
+					case MixBlend.setup:
+						bx = Math.abs(bone.data.scaleX) * MathUtils.signum(x);
+						by = Math.abs(bone.data.scaleY) * MathUtils.signum(y);
+						bone.scaleX = bx + (x - bx) * alpha;
+						bone.scaleY = by + (y - by) * alpha;
+						break;
+					case MixBlend.first:
+					case MixBlend.replace:
+						bx = Math.abs(bone.scaleX) * MathUtils.signum(x);
+						by = Math.abs(bone.scaleY) * MathUtils.signum(y);
+						bone.scaleX = bx + (x - bx) * alpha;
+						bone.scaleY = by + (y - by) * alpha;
+						break;
+					case MixBlend.add:
+						bx = MathUtils.signum(x);
+						by = MathUtils.signum(y);
+						bone.scaleX = Math.abs(bone.scaleX) * bx + (x - Math.abs(bone.data.scaleX) * bx) * alpha;
+						bone.scaleY = Math.abs(bone.scaleY) * by + (y - Math.abs(bone.data.scaleY) * by) * alpha;
+					}
 				}
-				bone.scaleX = bx + (x - bx) * alpha;
-				bone.scaleY = by + (y - by) * alpha;
 			}
 		}
 	}
@@ -409,17 +452,17 @@ module spine {
 			return (TimelineType.shear << 24) + this.boneIndex;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let frames = this.frames;
 
 			let bone = skeleton.bones[this.boneIndex];
 			if (time < frames[0]) {
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					bone.shearX = bone.data.shearX;
 					bone.shearY = bone.data.shearY;
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					bone.shearX += (bone.data.shearX - bone.shearX) * alpha;
 					bone.shearY += (bone.data.shearY - bone.shearY) * alpha;
 				}
@@ -442,12 +485,19 @@ module spine {
 				x = x + (frames[frame + ShearTimeline.X] - x) * percent;
 				y = y + (frames[frame + ShearTimeline.Y] - y) * percent;
 			}
-			if (pose == MixPose.setup) {
+			switch (blend) {
+			case MixBlend.setup:
 				bone.shearX = bone.data.shearX + x * alpha;
 				bone.shearY = bone.data.shearY + y * alpha;
-			} else {
+				break;
+			case MixBlend.first:
+			case MixBlend.replace:
 				bone.shearX += (bone.data.shearX + x - bone.shearX) * alpha;
 				bone.shearY += (bone.data.shearY + y - bone.shearY) * alpha;
+				break;
+			case MixBlend.add:
+				bone.shearX += x * alpha;
+				bone.shearY += y * alpha;
 			}
 		}
 	}
@@ -479,15 +529,15 @@ module spine {
 			this.frames[frameIndex + ColorTimeline.A] = a;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let slot = skeleton.slots[this.slotIndex];
 			let frames = this.frames;
 			if (time < frames[0]) {
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					slot.color.setFromColor(slot.data.color);
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					let color = slot.color, setup = slot.data.color;
 					color.add((setup.r - color.r) * alpha, (setup.g - color.g) * alpha, (setup.b - color.b) * alpha,
 						(setup.a - color.a) * alpha);
@@ -522,7 +572,7 @@ module spine {
 				slot.color.set(r, g, b, a);
 			else {
 				let color = slot.color;
-				if (pose == MixPose.setup) color.setFromColor(slot.data.color);
+				if (blend == MixBlend.setup) color.setFromColor(slot.data.color);
 				color.add((r - color.r) * alpha, (g - color.g) * alpha, (b - color.b) * alpha, (a - color.a) * alpha);
 			}
 		}
@@ -559,16 +609,16 @@ module spine {
 			this.frames[frameIndex + TwoColorTimeline.B2] = b2;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let slot = skeleton.slots[this.slotIndex];
 			let frames = this.frames;
 			if (time < frames[0]) {
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					slot.color.setFromColor(slot.data.color);
 					slot.darkColor.setFromColor(slot.data.darkColor);
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					let light = slot.color, dark = slot.darkColor, setupLight = slot.data.color, setupDark = slot.data.darkColor;
 					light.add((setupLight.r - light.r) * alpha, (setupLight.g - light.g) * alpha, (setupLight.b - light.b) * alpha,
 						(setupLight.a - light.a) * alpha);
@@ -614,7 +664,7 @@ module spine {
 				slot.darkColor.set(r2, g2, b2, 1);
 			} else {
 				let light = slot.color, dark = slot.darkColor;
-				if (pose == MixPose.setup) {
+				if (blend == MixBlend.setup) {
 					light.setFromColor(slot.data.color);
 					dark.setFromColor(slot.data.darkColor);
 				}
@@ -648,9 +698,9 @@ module spine {
 			this.attachmentNames[frameIndex] = attachmentName;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, events: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let slot = skeleton.slots[this.slotIndex];
-			if (direction == MixDirection.out && pose == MixPose.setup) {
+			if (direction == MixDirection.out && blend == MixBlend.setup) {
 				let attachmentName = slot.data.attachmentName;
 				slot.setAttachment(attachmentName == null ? null : skeleton.getAttachment(this.slotIndex, attachmentName));
 				return;
@@ -658,7 +708,7 @@ module spine {
 
 			let frames = this.frames;
 			if (time < frames[0]) {
-				if (pose == MixPose.setup) {
+				if (blend == MixBlend.setup || blend == MixBlend.first) {
 					let attachmentName = slot.data.attachmentName;
 					slot.setAttachment(attachmentName == null ? null : skeleton.getAttachment(this.slotIndex, attachmentName));
 				}
@@ -677,7 +727,7 @@ module spine {
 		}
 	}
 
-	var zeros : ArrayLike<number> = null;
+	let zeros : ArrayLike<number> = null;
 
 	export class DeformTimeline extends CurveTimeline {
 		slotIndex: number;
@@ -702,25 +752,25 @@ module spine {
 			this.frameVertices[frameIndex] = vertices;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let slot: Slot = skeleton.slots[this.slotIndex];
 			let slotAttachment: Attachment = slot.getAttachment();
 			if (!(slotAttachment instanceof VertexAttachment) || !(<VertexAttachment>slotAttachment).applyDeform(this.attachment)) return;
 
 			let verticesArray: Array<number> = slot.attachmentVertices;
-			if (verticesArray.length == 0) alpha = 1;
+			if (verticesArray.length == 0) blend = MixBlend.setup;
 
 			let frameVertices = this.frameVertices;
-			let vertexCount = frameVertices[0].length;			
+			let vertexCount = frameVertices[0].length;
 
 			let frames = this.frames;
 			if (time < frames[0]) {
 				let vertexAttachment = <VertexAttachment>slotAttachment;
-				switch (pose) {
-				case MixPose.setup:
-					verticesArray.length = 0;					
+				switch (blend) {
+				case MixBlend.setup:
+					verticesArray.length = 0;
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					if (alpha == 1) {
 						verticesArray.length = 0;
 						break;
@@ -728,7 +778,7 @@ module spine {
 					let vertices: Array<number> = Utils.setArraySize(verticesArray, vertexCount);
 					if (vertexAttachment.bones == null) {
 						// Unweighted vertex positions.
-						var setupVertices = vertexAttachment.vertices;
+						let setupVertices = vertexAttachment.vertices;
 						for (var i = 0; i < vertexCount; i++)
 							vertices[i] += (setupVertices[i] - vertices[i]) * alpha;
 					} else {
@@ -745,24 +795,58 @@ module spine {
 			if (time >= frames[frames.length - 1]) { // Time is after last frame.
 				let lastVertices = frameVertices[frames.length - 1];
 				if (alpha == 1) {
-					Utils.arrayCopy(lastVertices, 0, vertices, 0, vertexCount);
-				} else if (pose == MixPose.setup) {
-					let vertexAttachment = slotAttachment as VertexAttachment;
-					if (vertexAttachment.bones == null) {
-						// Unweighted vertex positions, with alpha.
-						let setupVertices = vertexAttachment.vertices;
-						for (let i = 0; i < vertexCount; i++) {
-							let setup = setupVertices[i];
-							vertices[i] = setup + (lastVertices[i] - setup) * alpha;
+					if (blend == MixBlend.add) {
+						let vertexAttachment = slotAttachment as VertexAttachment;
+						if (vertexAttachment.bones == null) {
+							// Unweighted vertex positions, with alpha.
+							let setupVertices = vertexAttachment.vertices;
+							for (let i = 0; i < vertexCount; i++) {
+								vertices[i] += lastVertices[i] - setupVertices[i];
+							}
+						} else {
+							// Weighted deform offsets, with alpha.
+							for (let i = 0; i < vertexCount; i++)
+								vertices[i] += lastVertices[i];
 						}
 					} else {
-						// Weighted deform offsets, with alpha.
-						for (let i = 0; i < vertexCount; i++)
-							vertices[i] = lastVertices[i] * alpha;
+						Utils.arrayCopy(lastVertices, 0, vertices, 0, vertexCount);
 					}
-				} else {
-					for (let i = 0; i < vertexCount; i++)
-						vertices[i] += (lastVertices[i] - vertices[i]) * alpha;
+				} else {
+					switch (blend) {
+					case MixBlend.setup: {
+						let vertexAttachment = slotAttachment as VertexAttachment;
+						if (vertexAttachment.bones == null) {
+							// Unweighted vertex positions, with alpha.
+							let setupVertices = vertexAttachment.vertices;
+							for (let i = 0; i < vertexCount; i++) {
+								let setup = setupVertices[i];
+								vertices[i] = setup + (lastVertices[i] - setup) * alpha;
+							}
+						} else {
+							// Weighted deform offsets, with alpha.
+							for (let i = 0; i < vertexCount; i++)
+								vertices[i] = lastVertices[i] * alpha;
+						}
+						break;
+					}
+					case MixBlend.first:
+					case MixBlend.replace:
+						for (let i = 0; i < vertexCount; i++)
+							vertices[i] += (lastVertices[i] - vertices[i]) * alpha;
+					case MixBlend.add:
+						let vertexAttachment = slotAttachment as VertexAttachment;
+						if (vertexAttachment.bones == null) {
+							// Unweighted vertex positions, with alpha.
+							let setupVertices = vertexAttachment.vertices;
+							for (let i = 0; i < vertexCount; i++) {
+								vertices[i] += (lastVertices[i] - setupVertices[i]) * alpha;
+							}
+						} else {
+							// Weighted deform offsets, with alpha.
+							for (let i = 0; i < vertexCount; i++)
+								vertices[i] += lastVertices[i] * alpha;
+						}
+					}
 				}
 				return;
 			}
@@ -775,31 +859,71 @@ module spine {
 			let percent = this.getCurvePercent(frame - 1, 1 - (time - frameTime) / (frames[frame - 1] - frameTime));
 
 			if (alpha == 1) {
-				for (let i = 0; i < vertexCount; i++) {
-					let prev = prevVertices[i];
-					vertices[i] = prev + (nextVertices[i] - prev) * percent;
-				}
-			} else if (pose == MixPose.setup) {
-				let vertexAttachment = slotAttachment as VertexAttachment;
-				if (vertexAttachment.bones == null) {
-					// Unweighted vertex positions, with alpha.
-					let setupVertices = vertexAttachment.vertices;
-					for (let i = 0; i < vertexCount; i++) {
-						let prev = prevVertices[i], setup = setupVertices[i];
-						vertices[i] = setup + (prev + (nextVertices[i] - prev) * percent - setup) * alpha;
+				if (blend == MixBlend.add) {
+					let vertexAttachment = slotAttachment as VertexAttachment;
+					if (vertexAttachment.bones == null) {
+						// Unweighted vertex positions, with alpha.
+						let setupVertices = vertexAttachment.vertices;
+						for (let i = 0; i < vertexCount; i++) {
+							let prev = prevVertices[i];
+							vertices[i] += prev + (nextVertices[i] - prev) * percent - setupVertices[i];
+						}
+					} else {
+						// Weighted deform offsets, with alpha.
+						for (let i = 0; i < vertexCount; i++) {
+							let prev = prevVertices[i];
+							vertices[i] += prev + (nextVertices[i] - prev) * percent;
+						}
 					}
 				} else {
-					// Weighted deform offsets, with alpha.
 					for (let i = 0; i < vertexCount; i++) {
 						let prev = prevVertices[i];
-						vertices[i] = (prev + (nextVertices[i] - prev) * percent) * alpha;
+						vertices[i] = prev + (nextVertices[i] - prev) * percent;
 					}
 				}
 			} else {
-				// Vertex positions or deform offsets, with alpha.
-				for (let i = 0; i < vertexCount; i++) {
-					let prev = prevVertices[i];
-					vertices[i] += (prev + (nextVertices[i] - prev) * percent - vertices[i]) * alpha;
+				switch (blend) {
+				case MixBlend.setup: {
+					let vertexAttachment = slotAttachment as VertexAttachment;
+					if (vertexAttachment.bones == null) {
+						// Unweighted vertex positions, with alpha.
+						let setupVertices = vertexAttachment.vertices;
+						for (let i = 0; i < vertexCount; i++) {
+							let prev = prevVertices[i], setup = setupVertices[i];
+							vertices[i] = setup + (prev + (nextVertices[i] - prev) * percent - setup) * alpha;
+						}
+					} else {
+						// Weighted deform offsets, with alpha.
+						for (let i = 0; i < vertexCount; i++) {
+							let prev = prevVertices[i];
+							vertices[i] = (prev + (nextVertices[i] - prev) * percent) * alpha;
+						}
+					}
+					break;
+				}
+				case MixBlend.first:
+				case MixBlend.replace:
+					for (let i = 0; i < vertexCount; i++) {
+						let prev = prevVertices[i];
+						vertices[i] += (prev + (nextVertices[i] - prev) * percent - vertices[i]) * alpha;
+					}
+					break;
+				case MixBlend.add:
+					let vertexAttachment = slotAttachment as VertexAttachment;
+					if (vertexAttachment.bones == null) {
+						// Unweighted vertex positions, with alpha.
+						let setupVertices = vertexAttachment.vertices;
+						for (let i = 0; i < vertexCount; i++) {
+							let prev = prevVertices[i];
+							vertices[i] += (prev + (nextVertices[i] - prev) * percent - setupVertices[i]) * alpha;
+						}
+					} else {
+						// Weighted deform offsets, with alpha.
+						for (let i = 0; i < vertexCount; i++) {
+							let prev = prevVertices[i];
+							vertices[i] += (prev + (nextVertices[i] - prev) * percent) * alpha;
+						}
+					}
 				}
 			}
 		}
@@ -829,13 +953,13 @@ module spine {
 		}
 
 		/** Fires events for frames > lastTime and <= time. */
-		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			if (firedEvents == null) return;
 			let frames = this.frames;
 			let frameCount = this.frames.length;
 
 			if (lastTime > time) { // Fire events after last time for looped animations.
-				this.apply(skeleton, lastTime, Number.MAX_VALUE, firedEvents, alpha, pose, direction);
+				this.apply(skeleton, lastTime, Number.MAX_VALUE, firedEvents, alpha, blend, direction);
 				lastTime = -1;
 			} else if (lastTime >= frames[frameCount - 1]) // Last time is after last frame.
 				return;
@@ -881,17 +1005,17 @@ module spine {
 			this.drawOrders[frameIndex] = drawOrder;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let drawOrder: Array<Slot> = skeleton.drawOrder;
 			let slots: Array<Slot> = skeleton.slots;
-			if (direction == MixDirection.out && pose == MixPose.setup) {
+			if (direction == MixDirection.out && blend == MixBlend.setup) {
 				Utils.arrayCopy(skeleton.slots, 0, skeleton.drawOrder, 0, skeleton.slots.length);
 				return;
 			}
 
 			let frames = this.frames;
 			if (time < frames[0]) {
-				if (pose == MixPose.setup) Utils.arrayCopy(skeleton.slots, 0, skeleton.drawOrder, 0, skeleton.slots.length);
+				if (blend == MixBlend.setup || blend == MixBlend.first) Utils.arrayCopy(skeleton.slots, 0, skeleton.drawOrder, 0, skeleton.slots.length);
 				return;
 			}
 
@@ -912,12 +1036,12 @@ module spine {
 	}
 
 	export class IkConstraintTimeline extends CurveTimeline {
-		static ENTRIES = 3;
-		static PREV_TIME = -3; static PREV_MIX = -2; static PREV_BEND_DIRECTION = -1;
-		static MIX = 1; static BEND_DIRECTION = 2;
+		static ENTRIES = 5;
+		static PREV_TIME = -5; static PREV_MIX = -4; static PREV_BEND_DIRECTION = -3; static PREV_COMPRESS = -2; static PREV_STRETCH = -1;
+		static MIX = 1; static BEND_DIRECTION = 2; static COMPRESS = 3; static STRETCH = 4;
 
 		ikConstraintIndex: number;
-		frames: ArrayLike<number>; // time, mix, bendDirection, ...
+		frames: ArrayLike<number>; // time, mix, bendDirection, compress, stretch, ...
 
 		constructor (frameCount: number) {
 			super(frameCount);
@@ -929,37 +1053,54 @@ module spine {
 		}
 
 		/** Sets the time, mix and bend direction of the specified keyframe. */
-		setFrame (frameIndex: number, time: number, mix: number, bendDirection: number) {
+		setFrame (frameIndex: number, time: number, mix: number, bendDirection: number, compress: boolean, stretch: boolean) {
 			frameIndex *= IkConstraintTimeline.ENTRIES;
 			this.frames[frameIndex] = time;
 			this.frames[frameIndex + IkConstraintTimeline.MIX] = mix;
 			this.frames[frameIndex + IkConstraintTimeline.BEND_DIRECTION] = bendDirection;
+			this.frames[frameIndex + IkConstraintTimeline.COMPRESS] = compress ? 1 : 0;
+			this.frames[frameIndex + IkConstraintTimeline.STRETCH] = stretch ? 1 : 0;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let frames = this.frames;
 			let constraint: IkConstraint = skeleton.ikConstraints[this.ikConstraintIndex];
 			if (time < frames[0]) {
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					constraint.mix = constraint.data.mix;
 					constraint.bendDirection = constraint.data.bendDirection;
+					constraint.compress = constraint.data.compress;
+					constraint.stretch = constraint.data.stretch;
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					constraint.mix += (constraint.data.mix - constraint.mix) * alpha;
 					constraint.bendDirection = constraint.data.bendDirection;
+					constraint.compress = constraint.data.compress;
+					constraint.stretch = constraint.data.stretch;
 				}
 				return;
 			}
 
 			if (time >= frames[frames.length - IkConstraintTimeline.ENTRIES]) { // Time is after last frame.
-				if (pose == MixPose.setup) {
+				if (blend == MixBlend.setup) {
 					constraint.mix = constraint.data.mix + (frames[frames.length + IkConstraintTimeline.PREV_MIX] - constraint.data.mix) * alpha;
-					constraint.bendDirection = direction == MixDirection.out ? constraint.data.bendDirection
-						: frames[frames.length + IkConstraintTimeline.PREV_BEND_DIRECTION];
+					if (direction == MixDirection.out) {
+						constraint.bendDirection = constraint.data.bendDirection;
+						constraint.compress = constraint.data.compress;
+						constraint.stretch = constraint.data.stretch;
+					} else {
+						constraint.bendDirection = frames[frames.length + IkConstraintTimeline.PREV_BEND_DIRECTION]
+						constraint.compress = frames[frames.length + IkConstraintTimeline.PREV_COMPRESS] != 0;
+						constraint.stretch = frames[frames.length + IkConstraintTimeline.PREV_STRETCH] != 0;
+					}
 				} else {
 					constraint.mix += (frames[frames.length + IkConstraintTimeline.PREV_MIX] - constraint.mix) * alpha;
-					if (direction == MixDirection.in) constraint.bendDirection = frames[frames.length + IkConstraintTimeline.PREV_BEND_DIRECTION];
+					if (direction == MixDirection.in) {
+						constraint.bendDirection = frames[frames.length + IkConstraintTimeline.PREV_BEND_DIRECTION];
+						constraint.compress = frames[frames.length + IkConstraintTimeline.PREV_COMPRESS] != 0;
+						constraint.stretch = frames[frames.length + IkConstraintTimeline.PREV_STRETCH] != 0;
+					}
 				}
 				return;
 			}
@@ -971,12 +1112,24 @@ module spine {
 			let percent = this.getCurvePercent(frame / IkConstraintTimeline.ENTRIES - 1,
 				1 - (time - frameTime) / (frames[frame + IkConstraintTimeline.PREV_TIME] - frameTime));
 
-			if (pose == MixPose.setup) {
+			if (blend == MixBlend.setup) {
 				constraint.mix = constraint.data.mix + (mix + (frames[frame + IkConstraintTimeline.MIX] - mix) * percent - constraint.data.mix) * alpha;
-				constraint.bendDirection = direction == MixDirection.out ? constraint.data.bendDirection : frames[frame + IkConstraintTimeline.PREV_BEND_DIRECTION];
+				if (direction == MixDirection.out) {
+					constraint.bendDirection = constraint.data.bendDirection;
+					constraint.compress = constraint.data.compress;
+					constraint.stretch = constraint.data.stretch;
+				} else {
+					constraint.bendDirection = frames[frame + IkConstraintTimeline.PREV_BEND_DIRECTION];
+					constraint.compress = frames[frame + IkConstraintTimeline.PREV_COMPRESS] != 0;
+					constraint.stretch = frames[frame + IkConstraintTimeline.PREV_STRETCH] != 0;
+				}
 			} else {
 				constraint.mix += (mix + (frames[frame + IkConstraintTimeline.MIX] - mix) * percent - constraint.mix) * alpha;
-				if (direction == MixDirection.in) constraint.bendDirection = frames[frame + IkConstraintTimeline.PREV_BEND_DIRECTION];
+				if (direction == MixDirection.in) {
+					constraint.bendDirection = frames[frame + IkConstraintTimeline.PREV_BEND_DIRECTION];
+					constraint.compress = frames[frame + IkConstraintTimeline.PREV_COMPRESS] != 0;
+					constraint.stretch = frames[frame + IkConstraintTimeline.PREV_STRETCH] != 0;
+				}
 			}
 		}
 	}
@@ -1008,20 +1161,20 @@ module spine {
 			this.frames[frameIndex + TransformConstraintTimeline.SHEAR] = shearMix;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let frames = this.frames;
 
 			let constraint: TransformConstraint = skeleton.transformConstraints[this.transformConstraintIndex];
 			if (time < frames[0]) {
 				let data = constraint.data;
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					constraint.rotateMix = data.rotateMix;
 					constraint.translateMix = data.translateMix;
 					constraint.scaleMix = data.scaleMix;
 					constraint.shearMix = data.shearMix;
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					constraint.rotateMix += (data.rotateMix - constraint.rotateMix) * alpha;
 					constraint.translateMix += (data.translateMix - constraint.translateMix) * alpha;
 					constraint.scaleMix += (data.scaleMix - constraint.scaleMix) * alpha;
@@ -1053,7 +1206,7 @@ module spine {
 				scale += (frames[frame + TransformConstraintTimeline.SCALE] - scale) * percent;
 				shear += (frames[frame + TransformConstraintTimeline.SHEAR] - shear) * percent;
 			}
-			if (pose == MixPose.setup) {
+			if (blend == MixBlend.setup) {
 				let data = constraint.data;
 				constraint.rotateMix = data.rotateMix + (rotate - data.rotateMix) * alpha;
 				constraint.translateMix = data.translateMix + (translate - data.translateMix) * alpha;
@@ -1093,15 +1246,15 @@ module spine {
 			this.frames[frameIndex + PathConstraintPositionTimeline.VALUE] = value;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let frames = this.frames;
 			let constraint: PathConstraint = skeleton.pathConstraints[this.pathConstraintIndex];
 			if (time < frames[0]) {
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					constraint.position = constraint.data.position;
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					constraint.position += (constraint.data.position - constraint.position) * alpha;
 				}
 				return;
@@ -1120,7 +1273,7 @@ module spine {
 
 				position += (frames[frame + PathConstraintPositionTimeline.VALUE] - position) * percent;
 			}
-			if (pose == MixPose.setup)
+			if (blend == MixBlend.setup)
 				constraint.position = constraint.data.position + (position - constraint.data.position) * alpha;
 			else
 				constraint.position += (position - constraint.position) * alpha;
@@ -1136,15 +1289,15 @@ module spine {
 			return (TimelineType.pathConstraintSpacing << 24) + this.pathConstraintIndex;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let frames = this.frames;
 			let constraint: PathConstraint = skeleton.pathConstraints[this.pathConstraintIndex];
 			if (time < frames[0]) {
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					constraint.spacing = constraint.data.spacing;
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					constraint.spacing += (constraint.data.spacing - constraint.spacing) * alpha;
 				}
 				return;
@@ -1164,7 +1317,7 @@ module spine {
 				spacing += (frames[frame + PathConstraintSpacingTimeline.VALUE] - spacing) * percent;
 			}
 
-			if (pose == MixPose.setup)
+			if (blend == MixBlend.setup)
 				constraint.spacing = constraint.data.spacing + (spacing - constraint.data.spacing) * alpha;
 			else
 				constraint.spacing += (spacing - constraint.spacing) * alpha;
@@ -1197,17 +1350,17 @@ module spine {
 			this.frames[frameIndex + PathConstraintMixTimeline.TRANSLATE] = translateMix;
 		}
 
-		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, pose: MixPose, direction: MixDirection) {
+		apply (skeleton: Skeleton, lastTime: number, time: number, firedEvents: Array<Event>, alpha: number, blend: MixBlend, direction: MixDirection) {
 			let frames = this.frames;
 			let constraint: PathConstraint = skeleton.pathConstraints[this.pathConstraintIndex];
 
 			if (time < frames[0]) {
-				switch (pose) {
-				case MixPose.setup:
+				switch (blend) {
+				case MixBlend.setup:
 					constraint.rotateMix = constraint.data.rotateMix;
 					constraint.translateMix = constraint.data.translateMix;
 					return;
-				case MixPose.current:
+				case MixBlend.first:
 					constraint.rotateMix += (constraint.data.rotateMix - constraint.rotateMix) * alpha;
 					constraint.translateMix += (constraint.data.translateMix - constraint.translateMix) * alpha;
 				}
@@ -1231,7 +1384,7 @@ module spine {
 				translate += (frames[frame + PathConstraintMixTimeline.TRANSLATE] - translate) * percent;
 			}
 
-			if (pose == MixPose.setup) {
+			if (blend == MixBlend.setup) {
 				constraint.rotateMix = constraint.data.rotateMix + (rotate - constraint.data.rotateMix) * alpha;
 				constraint.translateMix = constraint.data.translateMix + (translate - constraint.data.translateMix) * alpha;
 			} else {

@@ -1,16 +1,20 @@
 # spine-cocos2dx v3.x
 
-The spine-cocos2dx runtime provides functionality to load, manipulate and render [Spine](http://esotericsoftware.com) skeletal animation data using [cocos2d-x](http://www.cocos2d-x.org/). spine-cocos2dx is based on [spine-c](https://github.com/EsotericSoftware/spine-runtimes/tree/master/spine-c).
+The spine-cocos2dx runtime provides functionality to load, manipulate and render [Spine](http://esotericsoftware.com) skeletal animation data using [cocos2d-x](http://www.cocos2d-x.org/). spine-cocos2dx is based on [spine-cpp](../spine-cpp).
 
 ## Licensing
 
-This Spine Runtime may only be used for personal or internal use, typically to evaluate Spine before purchasing. If you would like to incorporate a Spine Runtime into your applications, distribute software containing a Spine Runtime, or modify a Spine Runtime, then you will need a valid [Spine license](https://esotericsoftware.com/spine-purchase). Please see the [Spine Runtimes Software License](http://esotericsoftware.com/git/spine-runtimes/blob/LICENSE) for detailed information.
+You are welcome to evaluate the Spine Runtimes and the examples we provide in this repository free of charge.
 
-The Spine Runtimes are developed with the intent to be used with data exported from Spine. By purchasing Spine, `Section 2` of the [Spine Software License](https://esotericsoftware.com/files/license.txt) grants the right to create and distribute derivative works of the Spine Runtimes.
+You can integrate the Spine Runtimes into your software free of charge, but users of your software must have their own [Spine license](https://esotericsoftware.com/spine-purchase). Please make your users aware of this requirement! This option is often chosen by those making development tools, such as an SDK, game toolkit, or software library.
+
+In order to distribute your software containing the Spine Runtimes to others that don't have a Spine license, you need a [Spine license](https://esotericsoftware.com/spine-purchase) at the time of integration. Then you can distribute your software containing the Spine Runtimes however you like, provided others don't modify it or use it to create new software. If others want to do that, they'll need their own Spine license.
+
+For the official legal terms governing the Spine Runtimes, please read the [Spine Runtimes License Agreement](http://esotericsoftware.com/spine-runtimes-license) and Section 2 of the [Spine Editor License Agreement](http://esotericsoftware.com/spine-editor-license#s2).
 
 ## Spine version
 
-spine-cocos2dx works with data exported from Spine 3.6.xx.
+spine-cocos2dx works with data exported from Spine 3.7.xx.
 
 spine-cocos2dx supports all Spine features.
 
@@ -22,11 +26,11 @@ The setup for cocos2d-x differs from most other Spine Runtimes because the cocos
 2. Delete the folder `cocos2d/cocos/editor-support/spine`. This will remove the outdated Spine cocos2d-x runtime shipped by cocos2d-x.
 3. Open your project in your IDE of choice, then open the cocos2d_libs sub project and delete the `editor-support/spine` group. This will remove the outdated Spine cocos2d-x runtime shipped by cocos2d-x from your build.
 3. Download the Spine Runtimes source using git (`git clone https://github.com/esotericsoftware/spine-runtimes`) or download it as a zip via the download button above.
-4. Add the sources from `spine-c/spine-c/src/spine` and `spine-cocos2dx/src/spine` to your project
-4. Add the folders `spine-c/spine-c/include` and `spine-cocos2dx/src` to your header search path. Note that includes are specified as `#inclue <spine/file.h>`, so the `spine` directory cannot be omitted when copying the source files.
+4. Add the sources from `spine-cpp/spine-cpp/src/spine` and `spine-cocos2dx/src/spine` to your project
+4. Add the folders `spine-cpp/spine-cpp/include` and `spine-cocos2dx/src` to your header search path. Note that includes are specified as `#inclue <spine/file.h>`, so the `spine` directory cannot be omitted when copying the source files.
 
 ## Example
-The Spine cocos2d-x example works on Windows and Mac OS X.
+The Spine cocos2d-x example works on Windows, Mac OS X, iOS and Android.
 
 ### Windows
 1. Install [Visual Studio 2015 Community](https://www.visualstudio.com/en-us/downloads/download-visual-studio-vs.aspx)
@@ -38,8 +42,7 @@ The Spine cocos2d-x example works on Windows and Mac OS X.
 7. Click `Configure`. This will download the cocos2d-x dependency and wire it up with the example source code in `spine-runtimes/spine-cocos2dx/example`. The download is 400mb, so get yourself a cup of tea.
 7. Open the file `spine-cocos2dx\example\cocos2d\cocos\2d\cocos2dx.props` and remove the `libSpine.lib` entry from the `<AdditionalDependencies>` tag.
 8. Open the `spine-runtimes/spine-cocos2dx/example/proj.win32/spine-cocos2d-x.sln` file in Visual Studio 2015. Visual Studio may ask you to install the Windows XP/7 SDK, which you should install.
-9. Expand the cocos2d_libs sub project and delete the `editor-support/spine` group. This will remove the outdated Spine cocos2d-x runtime shipped by cocos2d-x from your build.
-9. Expand `References` of the cocos2d_libs sub project, and remove the entry for `libSpine`, which should be marked with an error.
+9. Expand `References` of the libcocos2d sub project, and remove the entry for `libSpine`, which should be marked with an error.
 9. Right click the `spine-cocos2d-x` project in the solution explorer and select `Set as Startup Project` from the context menu
 10. Click `Local Windows Debugger` to run the example
 

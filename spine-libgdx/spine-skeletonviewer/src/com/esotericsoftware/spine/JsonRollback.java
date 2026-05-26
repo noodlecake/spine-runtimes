@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 package com.esotericsoftware.spine;
@@ -65,26 +64,26 @@ public class JsonRollback {
 		rename(root, "ffd", "animations", "*", "deform");
 
 		// In 3.3 mesh is now a single type, previously they were skinnedmesh if they had weights.
-		for (JsonValue value : find(root, new Array(), 0, "skins", "*", "*", "*", "type", "mesh"))
+		for (JsonValue value : find(root, new Array<JsonValue>(), 0, "skins", "*", "*", "*", "type", "mesh"))
 			if (value.parent.get("uvs").size != value.parent.get("vertices").size) value.set("skinnedmesh");
 
 		// In 3.3 linkedmesh is now a single type, previously they were linkedweightedmesh if they had weights.
-		for (JsonValue value : find(root, new Array(), 0, "skins", "*", "*", "*", "type", "linkedmesh")) {
+		for (JsonValue value : find(root, new Array<JsonValue>(), 0, "skins", "*", "*", "*", "type", "linkedmesh")) {
 			String slot = value.parent.parent.name.replaceAll("", "");
 			String skinName = value.parent.getString("skin", "default");
 			String parentName = value.parent.getString("parent");
-			if (find(root, new Array(), 0,
+			if (find(root, new Array<JsonValue>(), 0,
 				("skins~~" + skinName + "~~" + slot + "~~" + parentName + "~~type~~skinnedmesh").split("~~")).size > 0)
 				value.set("weightedlinkedmesh");
 		}
 
 		// In 3.3 bounding boxes can be weighted.
-		for (JsonValue value : find(root, new Array(), 0, "skins", "*", "*", "*", "type", "boundingbox"))
+		for (JsonValue value : find(root, new Array<JsonValue>(), 0, "skins", "*", "*", "*", "type", "boundingbox"))
 			if (value.parent.getInt("vertexCount") * 2 != value.parent.get("vertices").size)
 				value.parent.parent.remove(value.parent.name);
 
 		// In 3.3 paths were added.
-		for (JsonValue value : find(root, new Array(), 0, "skins", "*", "*", "*", "type", "path")) {
+		for (JsonValue value : find(root, new Array<JsonValue>(), 0, "skins", "*", "*", "*", "type", "path")) {
 			String attachment = value.parent.name;
 			value.parent.parent.remove(attachment);
 			String slot = value.parent.parent.name;
@@ -93,7 +92,7 @@ public class JsonRollback {
 		}
 
 		// In 3.3 IK constraint timelines no longer require bendPositive.
-		for (JsonValue value : find(root, new Array(), 0, "animations", "*", "ik", "*"))
+		for (JsonValue value : find(root, new Array<JsonValue>(), 0, "animations", "*", "ik", "*"))
 			for (JsonValue child = value.child; child != null; child = child.next)
 				if (!child.has("bendPositive")) child.addChild("bendPositive", new JsonValue(true));
 
@@ -110,17 +109,17 @@ public class JsonRollback {
 	}
 
 	static void setValue (JsonValue root, String newValue, String... path) {
-		for (JsonValue value : find(root, new Array(), 0, path))
+		for (JsonValue value : find(root, new Array<JsonValue>(), 0, path))
 			value.set(newValue);
 	}
 
 	static void rename (JsonValue root, String newName, String... path) {
-		for (JsonValue value : find(root, new Array(), 0, path))
+		for (JsonValue value : find(root, new Array<JsonValue>(), 0, path))
 			value.name = newName;
 	}
 
 	static void delete (JsonValue root, String... path) {
-		for (JsonValue value : find(root, new Array(), 0, path))
+		for (JsonValue value : find(root, new Array<JsonValue>(), 0, path))
 			value.parent.remove(value.name);
 	}
 

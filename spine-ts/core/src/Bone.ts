@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 module spine {
@@ -76,28 +75,16 @@ module spine {
 
 			let parent = this.parent;
 			if (parent == null) { // Root bone.
-				let rotationY = rotation + 90 + shearY;
-				let la = MathUtils.cosDeg(rotation + shearX) * scaleX;
-				let lb = MathUtils.cosDeg(rotationY) * scaleY;
-				let lc = MathUtils.sinDeg(rotation + shearX) * scaleX;
-				let ld = MathUtils.sinDeg(rotationY) * scaleY;
 				let skeleton = this.skeleton;
-				if (skeleton.flipX) {
-					x = -x;
-					la = -la;
-					lb = -lb;
-				}
-				if (skeleton.flipY) {
-					y = -y;
-					lc = -lc;
-					ld = -ld;
-				}
-				this.a = la;
-				this.b = lb;
-				this.c = lc;
-				this.d = ld;
-				this.worldX = x + skeleton.x;
-				this.worldY = y + skeleton.y;
+				let rotationY = rotation + 90 + shearY;
+				let sx = skeleton.scaleX;
+				let sy = skeleton.scaleY;
+				this.a = MathUtils.cosDeg(rotation + shearX) * scaleX * sx;
+				this.b = MathUtils.cosDeg(rotationY) * scaleY * sx;
+				this.c = MathUtils.sinDeg(rotation + shearX) * scaleX * sy;
+				this.d = MathUtils.sinDeg(rotationY) * scaleY * sy;
+				this.worldX = x * sx + skeleton.x;
+				this.worldY = y * sy + skeleton.y;
 				return;
 			}
 
@@ -155,13 +142,15 @@ module spine {
 			case TransformMode.NoScaleOrReflection: {
 				let cos = MathUtils.cosDeg(rotation);
 				let sin = MathUtils.sinDeg(rotation);
-				let za = pa * cos + pb * sin;
-				let zc = pc * cos + pd * sin;
+				let za = (pa * cos + pb * sin) / this.skeleton.scaleX;
+				let zc = (pc * cos + pd * sin) / this.skeleton.scaleY;
 				let s = Math.sqrt(za * za + zc * zc);
 				if (s > 0.00001) s = 1 / s;
 				za *= s;
 				zc *= s;
 				s = Math.sqrt(za * za + zc * zc);
+				if (this.data.transformMode == TransformMode.NoScale
+					&& (pa * pd - pb * pc < 0) != (this.skeleton.scaleX < 0 != this.skeleton.scaleY < 0)) s = -s;
 				let r = Math.PI / 2 + Math.atan2(zc, za);
 				let zb = Math.cos(r) * s;
 				let zd = Math.sin(r) * s;
@@ -169,25 +158,17 @@ module spine {
 				let lb = MathUtils.cosDeg(90 + shearY) * scaleY;
 				let lc = MathUtils.sinDeg(shearX) * scaleX;
 				let ld = MathUtils.sinDeg(90 + shearY) * scaleY;
-				if (this.data.transformMode != TransformMode.NoScaleOrReflection ? pa * pd - pb * pc < 0 : this.skeleton.flipX != this.skeleton.flipY) {
-					zb = -zb;
-					zd = -zd;
-				}
 				this.a = za * la + zb * lc;
 				this.b = za * lb + zb * ld;
 				this.c = zc * la + zd * lc;
 				this.d = zc * lb + zd * ld;
-				return;
+				break;
 			}
 			}
-			if (this.skeleton.flipX) {
-				this.a = -this.a;
-				this.b = -this.b;
-			}
-			if (this.skeleton.flipY) {
-				this.c = -this.c;
-				this.d = -this.d;
-			}
+			this.a *= this.skeleton.scaleX;
+			this.b *= this.skeleton.scaleX;
+			this.c *= this.skeleton.scaleY;
+			this.d *= this.skeleton.scaleY;
 		}
 
 		setToSetupPose () {
@@ -280,10 +261,11 @@ module spine {
 
 		worldToLocalRotation (worldRotation: number) {
 			let sin = MathUtils.sinDeg(worldRotation), cos = MathUtils.cosDeg(worldRotation);
-			return Math.atan2(this.a * sin - this.c * cos, this.d * cos - this.b * sin) * MathUtils.radDeg;
+			return Math.atan2(this.a * sin - this.c * cos, this.d * cos - this.b * sin) * MathUtils.radDeg + this.rotation - this.shearX;
 		}
 
 		localToWorldRotation (localRotation: number) {
+			localRotation -= this.rotation - this.shearX;
 			let sin = MathUtils.sinDeg(localRotation), cos = MathUtils.cosDeg(localRotation);
 			return Math.atan2(cos * this.c + sin * this.d, cos * this.a + sin * this.b) * MathUtils.radDeg;
 		}

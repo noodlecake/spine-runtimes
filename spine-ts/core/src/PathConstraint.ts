@@ -1,31 +1,30 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 module spine {
@@ -69,28 +68,35 @@ module spine {
 			if (!translate && !rotate) return;
 
 			let data = this.data;
-			let spacingMode = data.spacingMode;
-			let lengthSpacing = spacingMode == SpacingMode.Length;
+			let percentSpacing = data.spacingMode == SpacingMode.Percent;
 			let rotateMode = data.rotateMode;
 			let tangents = rotateMode == RotateMode.Tangent, scale = rotateMode == RotateMode.ChainScale;
 			let boneCount = this.bones.length, spacesCount = tangents ? boneCount : boneCount + 1;
 			let bones = this.bones;
 			let spaces = Utils.setArraySize(this.spaces, spacesCount), lengths: Array<number> = null;
 			let spacing = this.spacing;
-			if (scale || lengthSpacing) {
+			if (scale || !percentSpacing) {
 				if (scale) lengths = Utils.setArraySize(this.lengths, boneCount);
+				let lengthSpacing = data.spacingMode == SpacingMode.Length;
 				for (let i = 0, n = spacesCount - 1; i < n;) {
 					let bone = bones[i];
 					let setupLength = bone.data.length;
 					if (setupLength < PathConstraint.epsilon) {
 						if (scale) lengths[i] = 0;
 						spaces[++i] = 0;
+					} else if (percentSpacing) {
+						if (scale) {
+							let x = setupLength * bone.a, y = setupLength * bone.c;
+							let length = Math.sqrt(x * x + y * y);
+							lengths[i] = length;
+						}
+						spaces[++i] = spacing;
 					} else {
 						let x = setupLength * bone.a, y = setupLength * bone.c;
 						let length = Math.sqrt(x * x + y * y);
 						if (scale) lengths[i] = length;
 						spaces[++i] = (lengthSpacing ? setupLength + spacing : spacing) * length / setupLength;
-					}										
+					}
 				}
 			} else {
 				for (let i = 1; i < spacesCount; i++)
@@ -98,7 +104,7 @@ module spine {
 			}
 
 			let positions = this.computeWorldPositions(<PathAttachment>attachment, spacesCount, tangents,
-				data.positionMode == PositionMode.Percent, spacingMode == SpacingMode.Percent);
+				data.positionMode == PositionMode.Percent, percentSpacing);
 			let boneX = positions[0], boneY = positions[1], offsetRotation = data.offsetRotation;
 			let tip = false;
 			if (offsetRotation == 0)
@@ -171,7 +177,7 @@ module spine {
 				let pathLength = lengths[curveCount];
 				if (percentPosition) position *= pathLength;
 				if (percentSpacing) {
-					for (let i = 0; i < spacesCount; i++)
+					for (let i = 1; i < spacesCount; i++)
 						spaces[i] *= pathLength;
 				}
 				world = Utils.setArraySize(this.world, 8);
@@ -277,9 +283,12 @@ module spine {
 				x1 = x2;
 				y1 = y2;
 			}
-			if (percentPosition) position *= pathLength;
+			if (percentPosition)
+				position *= pathLength;
+			else
+				position *= pathLength / path.lengths[curveCount - 1];
 			if (percentSpacing) {
-				for (let i = 0; i < spacesCount; i++)
+				for (let i = 1; i < spacesCount; i++)
 					spaces[i] *= pathLength;
 			}
 
@@ -390,13 +399,23 @@ module spine {
 
 		addCurvePosition (p: number, x1: number, y1: number, cx1: number, cy1: number, cx2: number, cy2: number, x2: number, y2: number,
 			out: Array<number>, o: number, tangents: boolean) {
-			if (p == 0 || isNaN(p)) p = 0.0001;
+			if (p == 0 || isNaN(p)) {
+				out[o] = x1;
+				out[o + 1] = y1;
+				out[o + 2] = Math.atan2(cy1 - y1, cx1 - x1);
+				return;
+			}
 			let tt = p * p, ttt = tt * p, u = 1 - p, uu = u * u, uuu = uu * u;
 			let ut = u * p, ut3 = ut * 3, uut3 = u * ut3, utt3 = ut3 * p;
 			let x = x1 * uuu + cx1 * uut3 + cx2 * utt3 + x2 * ttt, y = y1 * uuu + cy1 * uut3 + cy2 * utt3 + y2 * ttt;
 			out[o] = x;
 			out[o + 1] = y;
-			if (tangents) out[o + 2] = Math.atan2(y - (y1 * uu + cy1 * ut * 2 + cy2 * tt), x - (x1 * uu + cx1 * ut * 2 + cx2 * tt));
+			if (tangents) {
+				if (p < 0.001)
+					out[o + 2] = Math.atan2(cy1 - y1, cx1 - x1);
+				else
+					out[o + 2] = Math.atan2(y - (y1 * uu + cy1 * ut * 2 + cy2 * tt), x - (x1 * uu + cx1 * ut * 2 + cx2 * tt));
+			}
 		}
 
 		getOrder () {

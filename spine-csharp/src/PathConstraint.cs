@@ -1,36 +1,43 @@
 /******************************************************************************
- * Spine Runtimes Software License v2.5
+ * Spine Runtimes License Agreement
+ * Last updated May 1, 2019. Replaces all prior versions.
  *
- * Copyright (c) 2013-2016, Esoteric Software
- * All rights reserved.
+ * Copyright (c) 2013-2019, Esoteric Software LLC
  *
- * You are granted a perpetual, non-exclusive, non-sublicensable, and
- * non-transferable license to use, install, execute, and perform the Spine
- * Runtimes software and derivative works solely for personal or internal
- * use. Without the written permission of Esoteric Software (see Section 2 of
- * the Spine Software License Agreement), you may not (a) modify, translate,
- * adapt, or develop new applications using the Spine Runtimes or otherwise
- * create derivative works or improvements of the Spine Runtimes or (b) remove,
- * delete, alter, or obscure any trademarks or any copyright, trademark, patent,
- * or other intellectual property or proprietary rights notices on or in the
- * Software, including any copy thereof. Redistributions in binary or source
- * form must include this license and terms.
+ * Integration of the Spine Runtimes into software or otherwise creating
+ * derivative works of the Spine Runtimes is permitted under the terms and
+ * conditions of Section 2 of the Spine Editor License Agreement:
+ * http://esotericsoftware.com/spine-editor-license
  *
- * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
- * EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
- * USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
- * IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ * Otherwise, it is permitted to integrate the Spine Runtimes into software
+ * or otherwise create derivative works of the Spine Runtimes (collectively,
+ * "Products"), provided that each user of the Products must obtain their own
+ * Spine Editor license and redistribution of the Products in any form must
+ * include this license and copyright notice.
+ *
+ * THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+ * NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+ * INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *****************************************************************************/
 
 using System;
 
 namespace Spine {
+
+	/// <summary>
+	/// <para>
+	/// Stores the current pose for a path constraint. A path constraint adjusts the rotation, translation, and scale of the
+	/// constrained bones so they follow a {@link PathAttachment}.</para>
+	/// <para>
+	/// See <a href="http://esotericsoftware.com/spine-path-constraints">Path constraints</a> in the Spine User Guide.</para>
+	/// </summary>
 	public class PathConstraint : IConstraint {
 		const int NONE = -1, BEFORE = -2, AFTER = -3;
 		const float Epsilon = 0.00001f;
@@ -43,15 +50,6 @@ namespace Spine {
 		internal ExposedList<float> spaces = new ExposedList<float>(), positions = new ExposedList<float>();
 		internal ExposedList<float> world = new ExposedList<float>(), curves = new ExposedList<float>(), lengths = new ExposedList<float>();
 		internal float[] segments = new float[10];
-
-		public int Order { get { return data.order; } }
-		public float Position { get { return position; } set { position = value; } }
-		public float Spacing { get { return spacing; } set { spacing = value; } }
-		public float RotateMix { get { return rotateMix; } set { rotateMix = value; } }
-		public float TranslateMix { get { return translateMix; } set { translateMix = value; } }
-		public ExposedList<Bone> Bones { get { return bones; } }
-		public Slot Target { get { return target; } set { target = value; } }
-		public PathConstraintData Data { get { return data; } }
 
 		public PathConstraint (PathConstraintData data, Skeleton skeleton) {
 			if (data == null) throw new ArgumentNullException("data", "data cannot be null.");
@@ -67,11 +65,26 @@ namespace Spine {
 			translateMix = data.translateMix;
 		}
 
+		/// <summary>Copy constructor.</summary>
+		public PathConstraint (PathConstraint constraint, Skeleton skeleton) {
+			if (constraint == null) throw new ArgumentNullException("constraint cannot be null.");
+			if (skeleton == null) throw new ArgumentNullException("skeleton cannot be null.");
+			data = constraint.data;
+			bones = new ExposedList<Bone>(constraint.Bones.Count);
+			foreach (Bone bone in constraint.Bones)
+				bones.Add(skeleton.Bones.Items[bone.data.index]);
+			target = skeleton.slots.Items[constraint.target.data.index];
+			position = constraint.position;
+			spacing = constraint.spacing;
+			rotateMix = constraint.rotateMix;
+			translateMix = constraint.translateMix;
+		}
+
 		/// <summary>Applies the constraint to the constrained bones.</summary>
 		public void Apply () {
 			Update();
 		}
-			
+		
 		public void Update () {
 			PathAttachment attachment = target.Attachment as PathAttachment;
 			if (attachment == null) return;
@@ -81,22 +94,29 @@ namespace Spine {
 			if (!translate && !rotate) return;
 
 			PathConstraintData data = this.data;
-			SpacingMode spacingMode = data.spacingMode;
-			bool lengthSpacing = spacingMode == SpacingMode.Length;
+			bool percentSpacing = data.spacingMode == SpacingMode.Percent;
 			RotateMode rotateMode = data.rotateMode;
 			bool tangents = rotateMode == RotateMode.Tangent, scale = rotateMode == RotateMode.ChainScale;
 			int boneCount = this.bones.Count, spacesCount = tangents ? boneCount : boneCount + 1;
 			Bone[] bonesItems = this.bones.Items;
 			ExposedList<float> spaces = this.spaces.Resize(spacesCount), lengths = null;
 			float spacing = this.spacing;
-			if (scale || lengthSpacing) {
+			if (scale || !percentSpacing) {
 				if (scale) lengths = this.lengths.Resize(boneCount);
+				bool lengthSpacing = data.spacingMode == SpacingMode.Length;
 				for (int i = 0, n = spacesCount - 1; i < n;) {
 					Bone bone = bonesItems[i];
 					float setupLength = bone.data.length;
 					if (setupLength < PathConstraint.Epsilon) {
 						if (scale) lengths.Items[i] = 0;
 						spaces.Items[++i] = 0;
+					} else if (percentSpacing) {
+						if (scale) {
+							float x = setupLength * bone.a, y = setupLength * bone.c;
+							float length = (float)Math.Sqrt(x * x + y * y);
+							lengths.Items[i] = length;
+						}
+						spaces.Items[++i] = spacing;
 					} else {
 						float x = setupLength * bone.a, y = setupLength * bone.c;
 						float length = (float)Math.Sqrt(x * x + y * y);
@@ -110,7 +130,7 @@ namespace Spine {
 			}
 
 			float[] positions = ComputeWorldPositions(attachment, spacesCount, tangents,
-				data.positionMode == PositionMode.Percent, spacingMode == SpacingMode.Percent);
+				data.positionMode == PositionMode.Percent, percentSpacing);
 			float boneX = positions[0], boneY = positions[1], offsetRotation = data.offsetRotation;
 			bool tip;
 			if (offsetRotation == 0) {
@@ -150,9 +170,8 @@ namespace Spine {
 						float length = bone.data.length;
 						boneX += (length * (cos * a - sin * c) - dx) * rotateMix;
 						boneY += (length * (sin * a + cos * c) - dy) * rotateMix;
-					} else {
+					} else
 						r += offsetRotation;
-					}
 					if (r > MathUtils.PI)
 						r -= MathUtils.PI2;
 					else if (r < -MathUtils.PI) //
@@ -177,15 +196,15 @@ namespace Spine {
 			float[] spacesItems = this.spaces.Items, output = this.positions.Resize(spacesCount * 3 + 2).Items, world;
 			bool closed = path.Closed;
 			int verticesLength = path.WorldVerticesLength, curveCount = verticesLength / 6, prevCurve = NONE;
+			float pathLength = 0;
 
-			float pathLength;
 			if (!path.ConstantSpeed) {
 				float[] lengths = path.Lengths;
 				curveCount -= closed ? 1 : 2;
 				pathLength = lengths[curveCount];
 				if (percentPosition) position *= pathLength;
 				if (percentSpacing) {
-					for (int i = 0; i < spacesCount; i++)
+					for (int i = 1; i < spacesCount; i++)
 						spacesItems[i] *= pathLength;
 				}
 				world = this.world.Resize(8).Items;
@@ -201,14 +220,14 @@ namespace Spine {
 					} else if (p < 0) {
 						if (prevCurve != BEFORE) {
 							prevCurve = BEFORE;
-							path.ComputeWorldVertices(target, 2, 4, world, 0);
+							path.ComputeWorldVertices(target, 2, 4, world, 0, 2);
 						}
 						AddBeforePosition(p, world, 0, output, o);
 						continue;
 					} else if (p > pathLength) {
 						if (prevCurve != AFTER) {
 							prevCurve = AFTER;
-							path.ComputeWorldVertices(target, verticesLength - 6, 4, world, 0);
+							path.ComputeWorldVertices(target, verticesLength - 6, 4, world, 0, 2);
 						}
 						AddAfterPosition(p - pathLength, world, 0, output, o);
 						continue;
@@ -229,10 +248,10 @@ namespace Spine {
 					if (curve != prevCurve) {
 						prevCurve = curve;
 						if (closed && curve == curveCount) {
-							path.ComputeWorldVertices(target, verticesLength - 4, 4, world, 0);
-							path.ComputeWorldVertices(target, 0, 4, world, 4);
+							path.ComputeWorldVertices(target, verticesLength - 4, 4, world, 0, 2);
+							path.ComputeWorldVertices(target, 0, 4, world, 4, 2);
 						} else
-							path.ComputeWorldVertices(target, curve * 6 + 2, 8, world, 0);
+							path.ComputeWorldVertices(target, curve * 6 + 2, 8, world, 0, 2);
 					}
 					AddCurvePosition(p, world[0], world[1], world[2], world[3], world[4], world[5], world[6], world[7], output, o,
 						tangents || (i > 0 && space < PathConstraint.Epsilon));
@@ -244,15 +263,15 @@ namespace Spine {
 			if (closed) {
 				verticesLength += 2;
 				world = this.world.Resize(verticesLength).Items;
-				path.ComputeWorldVertices(target, 2, verticesLength - 4, world, 0);
-				path.ComputeWorldVertices(target, 0, 2, world, verticesLength - 4);
+				path.ComputeWorldVertices(target, 2, verticesLength - 4, world, 0, 2);
+				path.ComputeWorldVertices(target, 0, 2, world, verticesLength - 4, 2);
 				world[verticesLength - 2] = world[0];
 				world[verticesLength - 1] = world[1];
 			} else {
 				curveCount--;
 				verticesLength -= 4;
 				world = this.world.Resize(verticesLength).Items;
-				path.ComputeWorldVertices(target, 2, verticesLength, world, 0);
+				path.ComputeWorldVertices(target, 2, verticesLength, world, 0, 2);
 			}
 
 			// Curve lengths.
@@ -291,9 +310,13 @@ namespace Spine {
 				x1 = x2;
 				y1 = y2;
 			}
-			if (percentPosition) position *= pathLength;
+			if (percentPosition)
+				position *= pathLength;
+			else
+				position *= pathLength / path.lengths[curveCount - 1];
+
 			if (percentSpacing) {
-				for (int i = 0; i < spacesCount; i++)
+				for (int i = 1; i < spacesCount; i++)
 					spacesItems[i] *= pathLength;
 			}
 
@@ -404,14 +427,43 @@ namespace Spine {
 
 		static void AddCurvePosition (float p, float x1, float y1, float cx1, float cy1, float cx2, float cy2, float x2, float y2,
 			float[] output, int o, bool tangents) {
-			if (p < PathConstraint.Epsilon || float.IsNaN(p)) p = PathConstraint.Epsilon;
+			if (p < PathConstraint.Epsilon || float.IsNaN(p)) {
+				output[o] = x1;
+				output[o + 1] = y1;
+				output[o + 2] = (float)Math.Atan2(cy1 - y1, cx1 - x1);
+				return;
+			}
 			float tt = p * p, ttt = tt * p, u = 1 - p, uu = u * u, uuu = uu * u;
 			float ut = u * p, ut3 = ut * 3, uut3 = u * ut3, utt3 = ut3 * p;
 			float x = x1 * uuu + cx1 * uut3 + cx2 * utt3 + x2 * ttt, y = y1 * uuu + cy1 * uut3 + cy2 * utt3 + y2 * ttt;
 			output[o] = x;
 			output[o + 1] = y;
-			if (tangents)
-				output[o + 2] = (float)Math.Atan2(y - (y1 * uu + cy1 * ut * 2 + cy2 * tt), x - (x1 * uu + cx1 * ut * 2 + cx2 * tt));
+			if (tangents) {
+				if (p < 0.001f)
+					output[o + 2] = (float)Math.Atan2(cy1 - y1, cx1 - x1);
+				else
+					output[o + 2] = (float)Math.Atan2(y - (y1 * uu + cy1 * ut * 2 + cy2 * tt), x - (x1 * uu + cx1 * ut * 2 + cx2 * tt));
+			}
+		}
+		
+		public int Order { get { return data.order; } }
+		/// <summary>The position along the path.</summary>
+		public float Position { get { return position; } set { position = value; } }
+		/// <summary>The spacing between bones.</summary>
+		public float Spacing { get { return spacing; } set { spacing = value; } }
+		/// <summary>A percentage (0-1) that controls the mix between the constrained and unconstrained rotations.</summary>
+		public float RotateMix { get { return rotateMix; } set { rotateMix = value; } }
+		/// <summary>A percentage (0-1) that controls the mix between the constrained and unconstrained translations.</summary>
+		public float TranslateMix { get { return translateMix; } set { translateMix = value; } }
+		/// <summary>The bones that will be modified by this path constraint.</summary>
+		public ExposedList<Bone> Bones { get { return bones; } }
+		/// <summary>The slot whose path attachment will be used to constrained the bones.</summary>
+		public Slot Target { get { return target; } set { target = value; } }
+		/// <summary>The path constraint's setup pose data.</summary>
+		public PathConstraintData Data { get { return data; } }
+
+		override public string ToString () {
+			return data.name;
 		}
 	}
 }

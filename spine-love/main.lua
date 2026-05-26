@@ -1,31 +1,30 @@
 -------------------------------------------------------------------------------
--- Spine Runtimes Software License v2.5
+-- Spine Runtimes License Agreement
+-- Last updated May 1, 2019. Replaces all prior versions.
 --
--- Copyright (c) 2013-2016, Esoteric Software
--- All rights reserved.
+-- Copyright (c) 2013-2019, Esoteric Software LLC
 --
--- You are granted a perpetual, non-exclusive, non-sublicensable, and
--- non-transferable license to use, install, execute, and perform the Spine
--- Runtimes software and derivative works solely for personal or internal
--- use. Without the written permission of Esoteric Software (see Section 2 of
--- the Spine Software License Agreement), you may not (a) modify, translate,
--- adapt, or develop new applications using the Spine Runtimes or otherwise
--- create derivative works or improvements of the Spine Runtimes or (b) remove,
--- delete, alter, or obscure any trademarks or any copyright, trademark, patent,
--- or other intellectual property or proprietary rights notices on or in the
--- Software, including any copy thereof. Redistributions in binary or source
--- form must include this license and terms.
+-- Integration of the Spine Runtimes into software or otherwise creating
+-- derivative works of the Spine Runtimes is permitted under the terms and
+-- conditions of Section 2 of the Spine Editor License Agreement:
+-- http://esotericsoftware.com/spine-editor-license
 --
--- THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE "AS IS" AND ANY EXPRESS OR
--- IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
--- MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
--- EVENT SHALL ESOTERIC SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
--- SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
--- PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS INTERRUPTION, OR LOSS OF
--- USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
--- IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
--- ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
--- POSSIBILITY OF SUCH DAMAGE.
+-- Otherwise, it is permitted to integrate the Spine Runtimes into software
+-- or otherwise create derivative works of the Spine Runtimes (collectively,
+-- "Products"), provided that each user of the Products must obtain their own
+-- Spine Editor license and redistribution of the Products in any form must
+-- include this license and copyright notice.
+--
+-- THIS SOFTWARE IS PROVIDED BY ESOTERIC SOFTWARE LLC "AS IS" AND ANY EXPRESS
+-- OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+-- OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+-- NO EVENT SHALL ESOTERIC SOFTWARE LLC BE LIABLE FOR ANY DIRECT, INDIRECT,
+-- INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+-- BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, BUSINESS
+-- INTERRUPTION, OR LOSS OF USE, DATA, OR PROFITS) HOWEVER CAUSED AND ON ANY
+-- THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+-- NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+-- EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 -------------------------------------------------------------------------------
 
 local spine = require "spine-love.spine"
@@ -45,8 +44,7 @@ function loadSkeleton (jsonFile, atlasFile, animation, skin, scale, x, y)
 	local skeleton = spine.Skeleton.new(skeletonData)
 	skeleton.x = x
 	skeleton.y = y
-	skeleton.flipX = false
-	skeleton.flipY = true
+	skeleton.scaleY = -1
 	if skin then
 		skeleton:setSkin(skin)
 	end
@@ -85,7 +83,7 @@ function loadSkeleton (jsonFile, atlasFile, animation, skin, scale, x, y)
 		print(entry.trackIndex.." dispose: "..entry.animation.name)
 	end
 	state.onEvent = function (entry, event)
-		print(entry.trackIndex.." event: "..entry.animation.name..", "..event.data.name..", "..event.intValue..", "..event.floatValue..", '"..(event.stringValue or "").."'")
+		print(entry.trackIndex.." event: "..entry.animation.name..", "..event.data.name..", "..event.intValue..", "..event.floatValue..", '"..(event.stringValue or "").."'" .. ", " .. event.volume .. ", " .. event.balance)
 	end
 	
 	state:update(0.5)
@@ -97,13 +95,14 @@ end
 function love.load(arg)
 	if arg[#arg] == "-debug" then require("mobdebug").start() end
 	skeletonRenderer = spine.SkeletonRenderer.new(true)
-	table.insert(skeletons, loadSkeleton("coin-pro", "coin", "rotate", nil, 0.5, 400, 500))
-	table.insert(skeletons, loadSkeleton("spineboy-ess", "spineboy", "walk", nil, 0.5, 400, 500))
+	table.insert(skeletons, loadSkeleton("spineboy-pro", "spineboy", "walk", nil, 0.5, 400, 500))
+	table.insert(skeletons, loadSkeleton("stretchyman-pro", "stretchyman", "sneak", nil, 0.3, 200, 500))
+	table.insert(skeletons, loadSkeleton("coin-pro", "coin", "animation", nil, 0.5, 400, 300))
 	table.insert(skeletons, loadSkeleton("raptor-pro", "raptor", "walk", nil, 0.3, 400, 500))
 	table.insert(skeletons, loadSkeleton("goblins-pro", "goblins", "walk", "goblin", 1, 400, 500))
 	table.insert(skeletons, loadSkeleton("tank-pro", "tank", "drive", nil, 0.2, 600, 500))
 	table.insert(skeletons, loadSkeleton("vine-pro", "vine", "grow", nil, 0.3, 400, 500))
-	table.insert(skeletons, loadSkeleton("stretchyman-pro", "stretchyman", "sneak", nil, 0.3, 200, 500))
+	table.insert(skeletons, loadSkeleton("stretchyman-stretchy-ik-pro", "stretchyman", "sneak", nil, 0.3, 200, 500))
 end
 
 function love.update (delta)
@@ -128,7 +127,7 @@ function love.update (delta)
 end
 
 function love.draw ()
-	love.graphics.setBackgroundColor(128, 128, 128, 255)
+	love.graphics.setBackgroundColor(0, 0, 0, 255)
 	love.graphics.setColor(255, 255, 255)
 	local skeleton = skeletons[activeSkeleton].skeleton
 	
