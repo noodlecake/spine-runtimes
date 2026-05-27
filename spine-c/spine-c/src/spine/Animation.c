@@ -42,6 +42,10 @@ spAnimation* spAnimation_create (const char* name, int timelinesCount) {
 
 void spAnimation_dispose (spAnimation* self) {
 	int i;
+	/* Defensive: spSkeletonData_dispose walks the animations array up to animationsCount, but
+	 * when a binary/json parse fails partway the trailing entries are unset. Guard against NULL
+	 * so a failed parse cleans up gracefully (and callers fall back to .json) instead of crashing. */
+	if (!self) return;
 	for (i = 0; i < self->timelinesCount; ++i)
 		spTimeline_dispose(self->timelines[i]);
 	FREE(self->timelines);

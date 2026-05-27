@@ -1105,7 +1105,11 @@ spSkeletonData* spSkeletonBinary_readSkeletonData (spSkeletonBinary* self, const
 
 	/* Animations. */
 	skeletonData->animationsCount = readVarint(input, 1);
-	skeletonData->animations = MALLOC(spAnimation*, skeletonData->animationsCount);
+	/* CALLOC (not MALLOC): if _spSkeletonBinary_readAnimation fails partway (e.g. a malformed
+	 * .skel whose deform timeline references a skin index the skin table doesn't contain), the
+	 * trailing entries must be NULL so spSkeletonData_dispose's cleanup loop doesn't free garbage
+	 * and crash. Pairs with the NULL guard in spAnimation_dispose. */
+	skeletonData->animations = CALLOC(spAnimation*, skeletonData->animationsCount);
 	for (i = 0; i < skeletonData->animationsCount; ++i) {
 		const char* name = readString(input);
 		spAnimation* animation = _spSkeletonBinary_readAnimation(self, name, input, skeletonData);
