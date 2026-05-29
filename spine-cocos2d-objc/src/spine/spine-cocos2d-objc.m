@@ -30,6 +30,13 @@
 #import <spine/spine-cocos2d-objc.h>
 #import <spine/extension.h>
 
+// Optional per-call instrumentation for the spine file-read path. The Android
+// branch here goes through bridged NSData; iOS uses raw fopen. Bucket by file
+// extension so we can split skel vs atlas vs (json fallback) in the dump.
+#import "GBLoadProfiler.h"
+
+#include <string.h>
+
 void _spAtlasPage_createTexture (spAtlasPage* self, const char* path) {
 	CCTexture* texture = [[CCTexture textureWithFile:@(path)] retain];
 	self->rendererObject = texture;
@@ -42,7 +49,17 @@ void _spAtlasPage_disposeTexture (spAtlasPage* self) {
 	[(CCTexture*)self->rendererObject release];
 }
 
+static int gb_spine_cat_for_path (const char* path) {
+	if (!path) return GB_LP_SpineOtherRead;
+	size_t n = strlen(path);
+	if (n >= 5 && strcmp(path + n - 5, ".skel") == 0)  return GB_LP_SpineSkelRead;
+	if (n >= 6 && strcmp(path + n - 6, ".atlas") == 0) return GB_LP_SpineAtlasRead;
+	return GB_LP_SpineOtherRead;  // .json fallback or anything else
+}
+
 char* _spUtil_readFile (const char* path, int* length) {
+	GB_LP_T(_t_read);
+	char* result;
 	#ifdef ANDROID
 		// Use NSData to read from the apk path
 		NSString* filePath = [[CCFileUtils sharedFileUtils] fullPathForFilename:@(path)];
@@ -51,8 +68,10 @@ char* _spUtil_readFile (const char* path, int* length) {
 		char* bytes = malloc(fileSize);
 		[fileData getBytes:bytes];
 		*length = fileSize;
-		return bytes;
+		result = bytes;
 	#else
-		return _spReadFile([[[CCFileUtils sharedFileUtils] fullPathForFilename:@(path)] UTF8String], length);
+		result = _spReadFile([[[CCFileUtils sharedFileUtils] fullPathForFilename:@(path)] UTF8String], length);
 	#endif
+	GB_LP_REC(gb_spine_cat_for_path(path), _t_read, path);
+	return result;
 }

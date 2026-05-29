@@ -34,6 +34,12 @@
 #import "CCDrawNode.h"
 #import "CCDirector_Private.h"
 
+// Optional per-call instrumentation for the spine binary/json skeleton parse and
+// atlas parse — these are the biggest unmeasured chunk of the Android load (the
+// _spUtil_readFile bucket caught the I/O, but the post-read parsing dominates).
+// No-ops when GB_LOAD_PROFILE is 0. See src/Client/GBLoadProfiler.h.
+#import "GBLoadProfiler.h"
+
 static unsigned short quadTriangles[6] = {0, 1, 2, 2, 3, 0};
 static spTwoColorBatcher* batcher = 0;
 static spMesh* mesh = 0;
@@ -144,9 +150,11 @@ static bool handlerQueued = false;
 	json->scale = scale;
     spSkeletonData* skeletonData = NULL;
     
+    GB_LP_T(_t_json_a);
     @synchronized(self.class) {
         spSkeletonJson_readSkeletonDataFile(json, [skeletonDataFile UTF8String]);
     }
+    GB_LP_REC(GB_LP_SpineJsonParse, _t_json_a, [skeletonDataFile UTF8String]);
 	NSAssert(skeletonData, ([NSString stringWithFormat:@"Error reading skeleton data file: %@\nError: %s", skeletonDataFile, json->error]));
 	spSkeletonJson_dispose(json);
 	if (!skeletonData) return 0;
@@ -160,19 +168,23 @@ static bool handlerQueued = false;
 	self = [super init];
 	if (!self) return nil;
 
+    GB_LP_T(_t_atlas_j);
     @synchronized(self.class) {
         _atlas = spAtlas_createFromFile([atlasFile UTF8String], 0);
     }
+    GB_LP_REC(GB_LP_SpineAtlasParse, _t_atlas_j, [atlasFile UTF8String]);
 	NSAssert(_atlas, ([NSString stringWithFormat:@"Error reading atlas file: %@", atlasFile]));
 	if (!_atlas) return 0;
 
 	spSkeletonJson* json = spSkeletonJson_create(_atlas);
 	json->scale = scale;
     spSkeletonData* skeletonData;
-    
+
+    GB_LP_T(_t_json_b);
     @synchronized(self.class) {
         skeletonData = spSkeletonJson_readSkeletonDataFile(json, [skeletonDataFile UTF8String]);
     }
+    GB_LP_REC(GB_LP_SpineJsonParse, _t_json_b, [skeletonDataFile UTF8String]);
 	NSAssert(skeletonData, ([NSString stringWithFormat:@"Error reading skeleton data file: %@\nError: %s", skeletonDataFile, json->error]));
 	spSkeletonJson_dispose(json);
 	if (!skeletonData) return 0;
@@ -187,9 +199,11 @@ static bool handlerQueued = false;
 	self = [super init];
 	if (!self) return nil;
 
+    GB_LP_T(_t_atlas_b);
     @synchronized(self.class) {
         _atlas = spAtlas_createFromFile([atlasFile UTF8String], 0);
     }
+    GB_LP_REC(GB_LP_SpineAtlasParse, _t_atlas_b, [atlasFile UTF8String]);
 	NSAssert(_atlas, ([NSString stringWithFormat:@"Error reading atlas file: %@", atlasFile]));
 	if (!_atlas) return 0;
 
@@ -197,9 +211,11 @@ static bool handlerQueued = false;
 	binary->scale = scale;
     spSkeletonData* skeletonData;
 
+    GB_LP_T(_t_binary);
     @synchronized(self.class) {
         skeletonData = spSkeletonBinary_readSkeletonDataFile(binary, [skeletonDataFile UTF8String]);
     }
+    GB_LP_REC(GB_LP_SpineBinaryParse, _t_binary, [skeletonDataFile UTF8String]);
 	if (!skeletonData) {
 		// Do NOT NSAssert here. The binary reader returns NULL for a version-mismatched or
 		// corrupt .skel (see SkeletonBinary's version gate), and on Android NSAssert calls
