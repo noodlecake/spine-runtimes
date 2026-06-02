@@ -112,6 +112,15 @@ static bool handlerQueued = false;
 }
 
 - (void) setSdfTexture:(CCTexture *)sdfTexture {
+    // All of a golfer's attachments share the same SDF atlas page, so this is
+    // called once per attachment with an identical texture. Rebuilding the
+    // CCRenderState every time hands the renderer a fresh object pointer each
+    // call, which defeats batching (CCNoARC.m compares render states by
+    // identity) and splits the outline pass into one draw call per attachment.
+    // Reuse the existing state when the texture hasn't actually changed.
+    if(_sdfTexture == sdfTexture && _sdfRenderState) {
+        return;
+    }
     if(_sdfTexture) {
         [_sdfTexture release];
     }
